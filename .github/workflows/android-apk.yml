@@ -53,6 +53,15 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Publish APK to the session branch
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk AUDIO-rec.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f AUDIO-rec.apk
+          git commit -m "Add built AUDIO-rec Android APK"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
       - name: Publish APK release
         env:
           GH_TOKEN: ${{ github.token }}
