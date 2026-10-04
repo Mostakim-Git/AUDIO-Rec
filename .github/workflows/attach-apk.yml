@@ -1,0 +1,54 @@
+name: Attach AUDIO-rec.apk to the release
+
+# The build environment used for this project cannot reach
+# uploads.github.com (the only host that accepts release assets), so the APK
+# is attached to the release by a runner instead. This workflow is safe to run
+# any number of times: it does nothing if the asset is already attached.
+
+on:
+  push:
+    branches:
+      - arena/01a10817-audio-rec
+      - main
+    paths:
+      - release/AUDIO-rec.apk
+      - .github/workflows/attach-apk.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify the APK before publishing it
+        run: |
+          set -euo pipefail
+          f=release/AUDIO-rec.apk
+          test -f "$f"
+          size=$(stat -c%s "$f")
+          hash=$(sha256sum "$f" | cut -d' ' -f1)
+          echo "size=$size"
+          echo "sha256=$hash"
+          test "$size" = "585098"
+          test "$hash" = "ecd1933881acb8c6377a570cee7725609ea4e6cafb17fd2295ccbf7e0de276b0"
+
+      - name: Attach the APK to the v1.0.0 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v1.0.0 --json assets \
+               --jq '.assets[].name' | grep -qx AUDIO-rec.apk; then
+            echo "AUDIO-rec.apk is already attached; nothing to do."
+            exit 0
+          fi
+          gh release upload v1.0.0 release/AUDIO-rec.apk
+
+      - name: Read the release back
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release view v1.0.0 --json assets --jq '.assets[] | "\(.name) \(.size) bytes"'
