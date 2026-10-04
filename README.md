@@ -174,7 +174,39 @@ WAV is written as plain RIFF, and as RF64 automatically once a take would exceed
 4 GB, so long multichannel sessions at high rates stay valid. AIFF writes a
 canonical 18-byte `COMM` chunk with the 80-bit IEEE sample rate. OGG uses Opus at
 48 kHz (the encoder's native rate) with a 312-sample pre-skip and Vorbis-comment
-tags.
+tags. When the interface runs at another rate, that 48 kHz conversion carries the
+fractional sample position across capture blocks, so the length and the timing of
+an OGG take do not depend on the driver's buffer size.
+
+Playback reads back everything above, plus the corners the platform extractors
+mangle or refuse: 8-bit unsigned WAV and signed 8-bit AIFF, plain 32-bit ints,
+IEEE float, 20-in-24 bit EXTENSIBLE, RF64 whose sizes live in `ds64` while the
+data chunk still says `-1`, AIFF-C `sowt`/`fl32`, odd-sized chunks and pad bytes.
+μ-law, a-law, ADPCM and 64-bit float are handed to the platform decoders instead
+of being played as noise.
+
+### Running the checks
+
+None of the following needs a phone, an emulator or Android Studio:
+
+```bash
+bash tools/build.sh --release      # APK into release/, signature verified
+bash tools/test/run.sh             # every check below; artifacts in build/fmt
+```
+
+* `tools/test/FormatSelfTest.java` writes every container at every rate/depth and
+  checks the framing, the counters and the decoders (133 checks)
+* `tools/test/gen_foreign.py` builds a corpus with `struct` — odd-sized chunks,
+  pad bytes, 8-bit unsigned, 32-bit int, IEEE float, 20-in-24 bit EXTENSIBLE,
+  RF64 with a tail chunk, AIFF-C `sowt`/`fl32`, unsupported codecs, truncated and
+  garbage files — which `ReaderCheck.java` reads back (108 checks); nothing in it
+  was produced by our own writers
+* `tools/test/ResamplerCheck.java` feeds the 48 kHz resampler irregular block
+  sizes and compares it with a single-pass reference at twelve rates, with a
+  negative control that fails if the old per-block carry logic ever comes back
+  (54 checks)
+* `tools/format_check.py` scores the artifacts byte by byte without using any of
+  the app's code
 
 ## Hardware notes
 
