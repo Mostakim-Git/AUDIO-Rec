@@ -84,7 +84,9 @@ public class FlacWriter implements AudioSink {
         mOut.write(34);
         mOffset += 4;
         mStreamInfoOffset = mOffset;
-        mOut.write(streamInfoBytes(0, new byte[16]));    // patched at close
+        byte[] streamInfo = streamInfoBytes(0, new byte[16]);   // patched at close
+        mOut.write(streamInfo);
+        mOffset += streamInfo.length;
         writeVorbisComment();
     }
 
@@ -135,7 +137,7 @@ public class FlacWriter implements AudioSink {
         mOut.write(c1);
         writeIntLE(c2.length);
         mOut.write(c2);
-        mOffset += 4 + len;
+        mOffset += 1 + vendor.length + c1.length + c2.length;   // payload bytes
     }
 
     // --------------------------------------------------------------- write --

@@ -15,9 +15,10 @@ import java.nio.ByteBuffer;
  * OpusHead + OpusTags, pages cut on packet boundaries, continuation flags and
  * correct granule positions.
  *
- * Opus is a 48 kHz codec, so when the interface runs at another rate the
- * monitor-quality resampler is used, and multi-channel captures are folded down
- * to stereo.  WAV/FLAC/AIFF always stay at the native capture rate and depth -
+ * Opus is a 48 kHz codec, so when the interface runs at another rate the capture
+ * is linearly resampled block by block (see Pcm.Resampler - the result does not
+ * depend on where the capture blocks are cut), and multi-channel captures are
+ * folded down to stereo.  WAV/FLAC/AIFF always stay at the native capture rate and depth -
  * this is the only lossy path in the app, and the UI says so.
  */
 public class OggOpusWriter implements AudioSink {
@@ -40,6 +41,7 @@ public class OggOpusWriter implements AudioSink {
     private boolean mEos;
     private long mFramesTotal;
     private long mPackets;
+    private Pcm.Resampler mResampler;                  // capture rate -> 48 kHz, block safe
     private byte[] mHeldPacket;
     private byte[] mHeldTags;
     private int mBitrate;
@@ -82,6 +84,8 @@ public class OggOpusWriter implements AudioSink {
             throw new IOException("Opus encoder refused configuration: " + e.getMessage());
         }
 
+        mResampler = new Pcm.Resampler(mOutChannels, (double) sampleRate / OPUS_RATE);
+        mPending = new float[FRAME_SAMPLES * mOutChannels];
         mOgg = new OggWriter((int) (System.nanoTime() & 0x7FFFFFFF));
         mOgg.open(file);
         mOgg.writeBosPage(OggWriter.opusHead(mOutChannels, OPUS_RATE, PRE_SKIP));
@@ -95,43 +99,24 @@ public class OggOpusWriter implements AudioSink {
     @Override
     public void write(float[] interleaved, int samples) throws IOException {
         int frames = samples / mChannels;
-        float[] stereo = Pcm.toStereo(interleaved, frames, mChannels);
         mInputSamples += frames;
-
-        int frameOut = FRAME_SAMPLES;
-        double step = (double) mSampleRate / OPUS_RATE;   // capture frames per 48k sample
-        int needed = (int) Math.ceil(FRAME_SAMPLES * step) + 1;
-
-        if (mPending == null) mPending = new float[needed * mOutChannels * 2];
-
-        // Resample the incoming block onto the 48 kHz grid, carrying a partial
-        // frame across calls so no sample is lost or duplicated.
-        double pos = mCarryPos;
-        int srcFrames = frames;
-        while (pos < srcFrames - 1) {
-            int room = mPending.length / mOutChannels - mPendingFrames;
-            if (room <= 0) break;
-            int i0 = (int) pos;
-            double frac = pos - i0;
-            int i1 = Math.min(srcFrames - 1, i0 + 1);
-            for (int c = 0; c < mOutChannels; c++) {
-                float a = stereo[i0 * mOutChannels + c];
-                float b = stereo[i1 * mOutChannels + c];
-                mPending[mPendingFrames * mOutChannels + c] = (float) (a + (b - a) * frac);
-            }
-            mPendingFrames++;
-            pos += step;
-            if (mPendingFrames >= frameOut) {
-                encodeFrame(mPending, frameOut);
-                mPendingFrames = 0;
-            }
-        }
-        // keep the fractional position relative to the next block
-        mCarryPos = pos - srcFrames;
-        if (mCarryPos < 0) mCarryPos = 0;
+        mResampler.feed(Pcm.toStereo(interleaved, frames, mChannels), frames);
+        drainResampler();
     }
 
-    private double mCarryPos = 0;
+    /** move everything the resampler can give us into the encoder, packet by packet */
+    private void drainResampler() throws IOException {
+        while (true) {
+            if (mPendingFrames == FRAME_SAMPLES) {
+                encodeFrame(mPending, FRAME_SAMPLES);
+                mPendingFrames = 0;
+            }
+            int n = mResampler.read(mPending, mPendingFrames, FRAME_SAMPLES - mPendingFrames);
+            if (n == 0) return;
+            mPendingFrames += n;
+        }
+    }
+
 
     private void encodeFrame(float[] pcm, int frames) throws IOException {
         if (mEncoder == null) return;
@@ -190,6 +175,7 @@ public class OggOpusWriter implements AudioSink {
 
     @Override
     public void close(long frames) throws IOException {
+        drainResampler();                      // the resampler may still hold a partial span
         if (mPendingFrames > 0) {
             encodeFrame(mPending, mPendingFrames);
             mPendingFrames = 0;

@@ -11,6 +11,15 @@ import java.io.RandomAccessFile;
  * and MP3 but *not* for AIFF, and the brief explicitly asks for AIFF playback.
  * This parses COMM/SSND and streams big-endian PCM as float, which the playback
  * engine feeds to an AudioTrack exactly like a decoded track.
+ *
+ * It also reads the WAV/AIFF corners the platform extractors mangle or refuse:
+ * 8-bit unsigned PCM, plain 32-bit ints, IEEE float, 20-in-24 bit EXTENSIBLE
+ * files, RF64 whose sizes live in ds64 (with the data size left at -1), AIFF-C
+ * sowt/fl32, odd-sized chunks and pad bytes.  Anything it cannot hand to an
+ * AudioTrack - mu-law, a-law, ADPCM, 64-bit float, ima4 - returns null so the
+ * MediaPlayer/MediaCodec path gets its turn instead of us playing noise.
+ * tools/test/ReaderCheck.java exercises all of that against files built by
+ * tools/test/gen_foreign.py.
  */
 public class RawPcmReader {
 
@@ -27,9 +36,14 @@ public class RawPcmReader {
     private final byte[] mScratch = new byte[1 << 16];
     private long mRead;
 
-    private static final int S16 = 0, S24 = 1, S32 = 2, F32 = 3;
+    private static final int S8 = 0, U8 = 1, S16 = 2, S24 = 3, S32 = 4, F32 = 5;
     private int mKind;
     private boolean mBigEndian;
+
+    /** sample formats we can hand to AudioTrack; anything else goes to the platform */
+    static boolean supportedDepth(int bits) {
+        return bits == 8 || bits == 16 || bits == 24 || bits == 32;
+    }
 
     /** returns null when the file is not a container we handle ourselves */
     public static RawPcmReader open(File f) {
@@ -56,6 +70,12 @@ public class RawPcmReader {
         container = "aiff";
         mBigEndian = true;
         mRaf.seek(8);
+        byte[] form = new byte[4];
+        mRaf.readFully(form);
+        String type = new String(form, "US-ASCII");
+        boolean compressed = type.equals("AIFC");          // AIFF-C carries a codec tag
+        if (!compressed && !type.equals("AIFF")) return false;   // e.g. an IFF image
+        mRaf.seek(12);
         byte[] id = new byte[4];
         while (mRaf.getFilePointer() < mRaf.length() - 8) {
             mRaf.readFully(id);
@@ -66,15 +86,34 @@ public class RawPcmReader {
                 channels = readShortBE();
                 frames = readIntBE() & 0xFFFFFFFFL;
                 bitDepth = readShortBE();
+                if (channels <= 0) return false;
                 byte[] ext = new byte[10];
                 mRaf.readFully(ext);
                 sampleRate = (int) FormatProbe.extended80ToDouble(ext);
+                if (compressed) {
+                    // AIFF-C: the compression type follows the 80-bit sample rate
+                    if (size < 22) return false;
+                    byte[] ct = new byte[4];
+                    mRaf.readFully(ct);
+                    String codec = new String(ct, "US-ASCII");
+                    if (codec.equals("sowt")) {
+                        mBigEndian = false;               // little-endian PCM (what Macs write)
+                    } else if (codec.equals("fl32")) {
+                        mKind = F32;                      // 32-bit IEEE float, big-endian
+                        bitDepth = 32;
+                    } else if (!codec.equals("NONE") && !codec.equals("none")) {
+                        return false;                     // ima4/ulaw/alaw/...: not ours to decode
+                    }
+                }
+                if (!supportedDepth(bitDepth)) return false;
             } else if (chunk.equals("SSND")) {
                 long offset = readIntBE() & 0xFFFFFFFFL;
                 readIntBE();                       // block size
-                dataOffset = mRaf.getFilePointer() + offset;
-                dataBytes = size - 8 - offset;
-                mKind = bitDepth == 16 ? S16 : (bitDepth == 24 ? S24 : S32);
+                long start = mRaf.getFilePointer() + offset;
+                dataOffset = start;
+                dataBytes = Math.max(0, size - 8 - offset);
+                if (mKind != F32) mKind = bitDepth == 8 ? S8 : (bitDepth == 16 ? S16 : (bitDepth == 24 ? S24 : S32));
+                if (frames <= 0) frames = dataBytes / (channels * (bitDepth / 8L));
                 return channels > 0 && sampleRate > 0;
             }
             mRaf.seek(next);
@@ -85,36 +124,54 @@ public class RawPcmReader {
     private boolean parseWav() throws IOException {
         container = "wav";
         mBigEndian = false;
+        boolean floatFormat = false;
+        boolean unsupported = false;
+        long rf64Data = -1;
         mRaf.seek(12);
         byte[] id = new byte[4];
-        boolean floatFormat = false;
         while (mRaf.getFilePointer() < mRaf.length() - 8) {
             mRaf.readFully(id);
             String chunk = new String(id, "US-ASCII");
             long size = readIntLE() & 0xFFFFFFFFL;
             long next = mRaf.getFilePointer() + size + (size & 1);
-            if (chunk.equals("fmt ")) {
+            if (chunk.equals("ds64")) {
+                // RF64 keeps real 64-bit sizes here; the data chunk size stays -1
+                readLongLE();                      // riffSize
+                rf64Data = readLongLE();           // dataSize
+            } else if (chunk.equals("fmt ")) {
                 int tag = readShortLE();
                 channels = readShortLE();
                 sampleRate = readIntLE();
-                readIntLE();
-                readShortLE();
+                readIntLE();                       // byte rate
+                readShortLE();                     // block align
                 bitDepth = readShortLE();
-                if (tag == 3) floatFormat = true;
-                if (tag == 0xFFFE && size >= 40) {
-                    mRaf.seek(mRaf.getFilePointer() + 8);
+                if (tag == 3) {
+                    floatFormat = true;
+                } else if (tag == 0xFFFE) {
+                    if (size < 40) return false;
+                    mRaf.seek(mRaf.getFilePointer() + 8);      // cbSize, valid bits, channel mask
                     byte[] guid = new byte[16];
                     mRaf.readFully(guid);
                     if (guid[0] == 3) floatFormat = true;
+                    else if (guid[0] != 1) unsupported = true; // not PCM inside the wrapper
+                } else if (tag != 1) {
+                    unsupported = true;            // adpcm / a-law / mu-law: let MediaPlayer try
                 }
+                if (unsupported) return false;
+                if (channels <= 0 || !supportedDepth(bitDepth)) return false;
+                if (floatFormat && bitDepth != 32) return false;
             } else if (chunk.equals("data")) {
                 dataOffset = mRaf.getFilePointer();
                 dataBytes = size;
-                if (dataBytes == 0xFFFFFFFFL) dataBytes = mRaf.length() - dataOffset;
+                if (dataBytes == 0xFFFFFFFFL) {
+                    dataBytes = rf64Data >= 0 ? Math.min(rf64Data, mRaf.length() - dataOffset)
+                            : mRaf.length() - dataOffset;
+                }
                 mKind = floatFormat ? F32
-                        : (bitDepth == 32 ? S32 : (bitDepth == 24 ? S24 : S16));
-                if (frames == 0) {
-                    frames = dataBytes / Math.max(1, channels * (bitDepth / 8));
+                        : (bitDepth == 32 ? S32 : (bitDepth == 24 ? S24
+                        : (bitDepth == 16 ? S16 : U8)));
+                if (frames <= 0) {
+                    frames = dataBytes / (channels * (bitDepth / 8L));
                 }
                 return channels > 0 && sampleRate > 0;
             }
@@ -151,6 +208,16 @@ public class RawPcmReader {
         mRead += maxFrames;
         int samples = maxFrames * channelsL;
         switch (mKind) {
+            case S8:
+                for (int i = 0; i < samples; i++) {
+                    out[i] = mScratch[i] * (1f / 128f);
+                }
+                break;
+            case U8:
+                for (int i = 0; i < samples; i++) {
+                    out[i] = ((mScratch[i] & 0xFF) - 128) * (1f / 128f);
+                }
+                break;
             case S16:
                 for (int i = 0; i < samples; i++) {
                     int b0 = mScratch[i * 2] & 0xFF, b1 = mScratch[i * 2 + 1] & 0xFF;
@@ -206,6 +273,11 @@ public class RawPcmReader {
     private int readShortBE() throws IOException {
         int a = mRaf.read(), b = mRaf.read();
         return (a << 8) | b;
+    }
+
+    private long readLongLE() throws IOException {
+        long lo = readIntLE() & 0xFFFFFFFFL, hi = readIntLE() & 0xFFFFFFFFL;
+        return (hi << 32) | lo;
     }
 
     private int readIntLE() throws IOException {

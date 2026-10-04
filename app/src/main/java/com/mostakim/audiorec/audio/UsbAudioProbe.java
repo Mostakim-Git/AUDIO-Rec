@@ -272,9 +272,14 @@ public final class UsbAudioProbe {
     public static void requestPermission(Context ctx, UsbDevice device) {
         UsbManager um = (UsbManager) ctx.getSystemService(Context.USB_SERVICE);
         if (um == null) return;
+        // Android 12+ requires a MUTABLE PendingIntent here: the system fills the
+        // grant result into the intent it hands back to us, which an immutable
+        // one silently blocks (the permission would read as "denied" forever).
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        flags |= Build.VERSION.SDK_INT >= 31
+                ? PendingIntent.FLAG_MUTABLE : PendingIntent.FLAG_IMMUTABLE;
         PendingIntent pi = PendingIntent.getBroadcast(ctx, 0,
-                new Intent(ACTION_USB_PERMISSION).setPackage(ctx.getPackageName()),
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                new Intent(ACTION_USB_PERMISSION).setPackage(ctx.getPackageName()), flags);
         um.requestPermission(device, pi);
     }
 

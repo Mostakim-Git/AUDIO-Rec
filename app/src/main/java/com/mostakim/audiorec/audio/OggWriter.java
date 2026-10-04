@@ -26,7 +26,6 @@ public class OggWriter {
     private final int[] mLacing = new int[MAX_SEGMENTS];
     private byte[] mPayload = new byte[TARGET_PAGE_BYTES * 2];
     private int mPayloadLen;
-    private byte[] mPendingContinuation = null;   // partial packet spilling to the next page
     private boolean mContinued = false;
     private long mBytesWritten;
 
@@ -40,6 +39,7 @@ public class OggWriter {
         mGranule = -1;
         mSegmentCount = 0;
         mPayloadLen = 0;
+        mContinued = false;
         mBytesWritten = 0;
     }
 
@@ -58,39 +58,63 @@ public class OggWriter {
         flushPage(0x02, 0);                  // BOS flag, granule 0, sequence 0
     }
 
-    /** accumulate a packet; pages are cut on a packet boundary */
+    /**
+     * Accumulate a packet.  A page is cut on a packet boundary when the packet
+     * fits in what is left of it; otherwise the page is closed mid-packet -
+     * lacing values all 255, granule -1 - and the next page carries the
+     * "continued packet" flag, which is what the Ogg specification requires.
+     */
     public void writePacket(byte[] packet, long granule) throws IOException {
-        int offset = 0;
         int len = packet.length;
-        if (mPendingContinuation != null) {
-            // finish the packet that spilled into this page
-            offset = 0;
-            mPendingContinuation = null;
-        }
-        while (offset < len) {
+        int offset = 0;
+        while (true) {
             int room = TARGET_PAGE_BYTES - mPayloadLen;
-            int take = Math.min(room, len - offset);
-            if (mPayloadLen + take > mPayload.length) grow(mPayloadLen + take);
-            System.arraycopy(packet, offset, mPayload, mPayloadLen, take);
-            mPayloadLen += take;
-            offset += take;
-
-            int segs = take / 255;
-            int rem = take % 255;
-            for (int i = 0; i < segs; i++) addLacing(255);
-            if (offset < len) {
-                // packet continues: the current page ends on a 255 boundary with
-                // no terminating short segment
+            int segRoom = MAX_SEGMENTS - mSegmentCount;
+            int left = len - offset;
+            if (left <= room && segmentsFor(left) <= segRoom) {
+                append(packet, offset, left, true);
+                offset = len;
+                break;
+            }
+            // take whole 255-byte segments only: a packet split across pages may
+            // not carry a short lacing value on the first of them
+            int take = Math.min(Math.min(room, segRoom * 255), left);
+            take -= take % 255;
+            if (take <= 0) {
+                if (mPayloadLen == 0 && mSegmentCount == 0) {
+                    throw new IOException("Ogg packet cannot fit in a page: " + len);
+                }
+                flushMidPacket();
                 continue;
             }
-            if (rem > 0 || take % 255 == 0) addLacing(rem);
-            if (mSegmentCount >= MAX_SEGMENTS) {
-                flush(false, granule);
-            }
+            append(packet, offset, take, false);
+            offset += take;
+            flushMidPacket();
         }
         mGranule = granule;
         if (mPayloadLen >= TARGET_PAGE_BYTES || mSegmentCount >= MAX_SEGMENTS - 8) {
             flush(false, granule);
+        }
+    }
+
+    /** close a page whose last packet continues on the following page */
+    private void flushMidPacket() throws IOException {
+        flushPageRaw(mContinued ? 0x01 : 0x00, -1);   // undefined granule
+        mContinued = true;                            // the next page carries the rest
+    }
+
+    /** append payload bytes plus their lacing values (with a short terminator) */
+    private void append(byte[] packet, int offset, int len, boolean terminates) {
+        if (len <= 0 && !terminates) return;
+        if (mPayloadLen + len > mPayload.length) grow(mPayloadLen + len);
+        System.arraycopy(packet, offset, mPayload, mPayloadLen, len);
+        mPayloadLen += len;
+        for (int i = 0; i < len / 255; i++) addLacing(255);
+        if (terminates) {
+            if (mSegmentCount >= MAX_SEGMENTS) throw new IllegalStateException("lacing overflow");
+            mLacing[mSegmentCount++] = len % 255;     // 0 when len is a multiple of 255
+        } else if (len % 255 != 0) {
+            throw new IllegalStateException("partial packet must end on a 255 boundary");
         }
     }
 
@@ -129,7 +153,16 @@ public class OggWriter {
         flushPage(type, granule);
     }
 
+    /** same as flush(), but the granule is written verbatim (-1 = undefined) */
+    private void flushPageRaw(int type, long granule) throws IOException {
+        flushPage0(type, granule);
+    }
+
     private void flushPage(int type, long granule) throws IOException {
+        flushPage0(type, granule < 0 ? 0 : granule);
+    }
+
+    private void flushPage0(int type, long granule) throws IOException {
         int hdr = 27 + mSegmentCount;
         byte[] page = new byte[hdr + mPayloadLen];
         page[0] = 'O';
@@ -138,7 +171,7 @@ public class OggWriter {
         page[3] = 'S';
         page[4] = 0;                                  // version
         page[5] = (byte) type;
-        long g = granule < 0 ? 0 : granule;
+        long g = granule;
         for (int i = 0; i < 8; i++) page[6 + i] = (byte) ((g >>> (8 * i)) & 0xFF);
         for (int i = 0; i < 4; i++) page[14 + i] = (byte) ((mSerial >>> (8 * i)) & 0xFF);
         for (int i = 0; i < 4; i++) page[18 + i] = (byte) ((mSequence >>> (8 * i)) & 0xFF);

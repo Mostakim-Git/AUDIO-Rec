@@ -162,7 +162,11 @@ public final class FormatProbe {
         for (int i = 2; i < 10; i++) mant = (mant << 8) | (b[i] & 0xFF);
         if (exp == 0 && mant == 0) return 0;
         boolean neg = (b[0] & 0x80) != 0;
-        double v = mant * Math.pow(2, exp - 16383 - 63);
+        // the mantissa is unsigned: bit 63 is the explicit integer bit, so the
+        // fraction has to be taken without it and added back as a power of two
+        long frac = mant & 0x7FFFFFFFFFFFFFFFL;
+        double v = Math.scalb((double) frac, exp - 16383 - 63);
+        if ((mant & 0x8000000000000000L) != 0) v += Math.pow(2.0, exp - 16383);
         return neg ? -v : v;
     }
 

@@ -100,6 +100,7 @@ public class WavWriter implements AudioSink {
                     (byte) 0x80, 0x00, 0x00, (byte) 0xAA, 0x00, 0x38, (byte) 0x9B, 0x71};
             if (mFloat) guid[0] = 0x03;
             mOut.write(guid);
+            mOffset += guid.length;
         }
 
         write("data");

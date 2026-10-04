@@ -141,7 +141,14 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
     @Override
     protected void onResume() {
         super.onResume();
-        registerReceiver(mUsbReceiver, new IntentFilter("android.hardware.usb.action.USB_STATE"));
+        IntentFilter usbState = new IntentFilter("android.hardware.usb.action.USB_STATE");
+        if (Build.VERSION.SDK_INT >= 33) {
+            // system broadcast, but be explicit on Android 13+ instead of relying
+            // on the "system broadcasts are exempt" carve-out
+            registerReceiver(mUsbReceiver, usbState, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(mUsbReceiver, usbState);
+        }
         mEngine.addListener(this);
         mEngine.refreshDevices();
         Screen s = mScreens.get(mPage);

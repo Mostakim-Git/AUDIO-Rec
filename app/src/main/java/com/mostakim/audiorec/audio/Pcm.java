@@ -189,34 +189,112 @@ public final class Pcm {
 
     // ---------------------------------------------------------- resampling --
     /**
-     * Cheap linear resampler, used only for the *monitor* path and for feeding
-     * the Opus encoder at 48 kHz.  The recorded file always keeps the capture
-     * rate untouched - that is the whole point of the app.
+     * Block-wise linear resampler for the 48 kHz Ogg/Opus path (Opus is a 48 kHz
+     * codec; the recorded WAV/FLAC/AIFF always keep the native capture rate).
+     *
+     * The output does not depend on how the capture blocks are cut: the frame
+     * before the current read position is carried across calls, so interpolation
+     * continues through the joint instead of snapping back to the first sample of
+     * the next block.  Feeding one big block, or the same signal in blocks of 1,
+     * 1024 and 4096 frames, produces the same samples.
+     *
+     * `step` is input frames per output frame, i.e. captureRate / 48000.
      */
-    public static float[] resampleLinear(float[] in, int inFrames, int channels,
-                                         double ratio, float[] state, int[] stateLen) {
-        int outFrames = (int) Math.floor(inFrames / ratio) + 1;
-        float[] out = new float[outFrames * channels];
-        double pos = 0;
-        for (int f = 0; f < outFrames; f++) {
-            int i0 = (int) pos;
-            double frac = pos - i0;
-            int i1 = Math.min(inFrames - 1, i0 + 1);
-            for (int c = 0; c < channels; c++) {
-                float a = in[i0 * channels + c];
-                float b = in[i1 * channels + c];
-                out[f * channels + c] = (float) (a + (b - a) * frac);
-            }
-            pos += ratio;
-            if (i0 >= inFrames - 1) {
-                outFrames = f + 1;
-                break;
-            }
+    public static final class Resampler {
+
+        private final int mChannels;
+        private final double mStep;
+        private float[] mHist;                 // one frame of history
+        private boolean mHaveHist;
+        private float[] mIn = new float[0];    // fed but not consumed yet
+        private int mInFrames;
+        private double mPos;                   // next output position, in frames, into [hist + mIn]
+
+        public Resampler(int channels, double step) {
+            mChannels = channels;
+            mStep = step > 0 ? step : 1.0;
+            mHist = new float[channels];
         }
-        if (state != null && stateLen != null) stateLen[0] = inFrames;
-        float[] trimmed = new float[outFrames * channels];
-        System.arraycopy(out, 0, trimmed, 0, trimmed.length);
-        return trimmed;
+
+        public void reset() {
+            mInFrames = 0;
+            mHaveHist = false;
+            mPos = 0;
+        }
+
+        /** append a capture block; anything that cannot come out yet is kept */
+        public void feed(float[] in, int frames) {
+            if (frames <= 0) return;
+            int need = (mInFrames + frames) * mChannels;
+            if (mIn.length < need) {
+                float[] bigger = new float[Math.max(need, mIn.length * 2 + mChannels * 64)];
+                System.arraycopy(mIn, 0, bigger, 0, mInFrames * mChannels);
+                mIn = bigger;
+            }
+            System.arraycopy(in, 0, mIn, mInFrames * mChannels, frames * mChannels);
+            mInFrames += frames;
+        }
+
+        /** output frames that can be produced right now */
+        public int available() {
+            int virt = mInFrames + histLen() ;
+            if (virt < 2 || mPos > virt - 1) return 0;
+            return (int) Math.floor((virt - 1 - mPos) / mStep) + 1;
+        }
+
+        /** write up to maxFrames output frames into out, starting at frameOff */
+        public int read(float[] out, int frameOff, int maxFrames) {
+            int virt = mInFrames + histLen();
+            if (virt < 2 || maxFrames <= 0) return 0;
+            int made = 0;
+            while (made < maxFrames && mPos <= virt - 1) {
+                int i0 = (int) mPos;
+                double frac = mPos - i0;
+                int i1 = Math.min(virt - 1, i0 + 1);
+                int dst = (frameOff + made) * mChannels;
+                for (int c = 0; c < mChannels; c++) {
+                    float a = at(i0, c), b = at(i1, c);
+                    out[dst + c] = (float) (a + (b - a) * frac);
+                }
+                made++;
+                mPos += mStep;
+            }
+            if (made > 0) compact();
+            return made;
+        }
+
+        private int histLen() {
+            return mHaveHist ? 1 : 0;
+        }
+
+        private float at(int virtIndex, int c) {
+            if (virtIndex == 0 && mHaveHist) return mHist[c];
+            return mIn[(virtIndex - histLen()) * mChannels + c];
+        }
+
+        /**
+         * Drop the input that is behind the read position.  The frame just before
+         * it becomes the history, which is what keeps the position - and therefore
+         * the interpolation - continuous into the next block.
+         */
+        private void compact() {
+            // Never anchor past the frames we actually hold: when the read position
+            // has moved beyond the last frame that has arrived (always the case when
+            // downsampling), the last frame becomes the history and the position
+            // keeps its offset relative to it, so nothing is skipped or snapped back.
+            int keepFrom = (int) Math.min(mPos, mInFrames + histLen());
+            if (keepFrom <= 0) return;
+            for (int c = 0; c < mChannels; c++) mHist[c] = at(keepFrom - 1, c);
+            int pKeep = keepFrom - histLen();
+            if (pKeep >= mInFrames) {
+                mInFrames = 0;
+            } else if (pKeep > 0) {
+                System.arraycopy(mIn, pKeep * mChannels, mIn, 0, (mInFrames - pKeep) * mChannels);
+                mInFrames -= pKeep;
+            }
+            mHaveHist = true;
+            mPos -= keepFrom - 1;              // i.e. keep the fractional part, offset by one frame
+        }
     }
 
     /** first two source channels -> stereo (used by the Opus path and playback) */

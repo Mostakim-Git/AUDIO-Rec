@@ -9,6 +9,8 @@ place the app shows the brand is generated from that one file:
     assets/branding/audiorec-logo-user-flat.svg   CSS baked into attributes
     assets/branding/audiorec-lockup-user.svg      logo + AUDIO-rec wordmark
     assets/branding/audiorec-lockup-user.png      same lockup, no fonts required
+    assets/branding/audiorec-lockup-user-paper.png  ditto on the paper ground (readable
+                                                  in any viewer, dark ink included)
     assets/branding/audiorec-mark-user.png        transparent raster (docs)
     assets/branding/audiorec-brand-preview.png    launcher-mask preview sheet
     res/mipmap-*/ic_launcher_foreground.png       adaptive-icon foreground (108dp)
@@ -314,7 +316,13 @@ def main():
        .save(buf, "PNG", optimize=True)
     write(os.path.join(BRAND, "audiorec-mark-user.png"), buf.getvalue())
     write(LOCKUP, lockup_svg(flat))
-    write(os.path.join(BRAND, "audiorec-lockup-user.png"), _png_bytes(lockup_png(art)))
+    lockup = lockup_png(art)
+    write(os.path.join(BRAND, "audiorec-lockup-user.png"), _png_bytes(lockup))
+    # the wordmark is near-black ink, so a transparent copy reads as a hole on a
+    # dark viewer: keep an opaque paper-backed copy next to it
+    paper = Image.new("RGBA", lockup.size, PAPER + (255,))
+    paper.alpha_composite(lockup)
+    write(os.path.join(BRAND, "audiorec-lockup-user-paper.png"), _png_bytes(paper))
     write(os.path.join(BRAND, "audiorec-brand-preview.png"), _png_bytes(preview_sheet(art)))
     return 0
 
