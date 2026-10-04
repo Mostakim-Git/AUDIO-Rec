@@ -180,6 +180,81 @@ public class UiSmokeTest {
         check("click handlers ran", clicked > 10);
         check("no click handler threw", clickFailures == 0);
 
+        // ------------------------------------------------- the feature checklist
+        // Every item on the operator's list, checked where the operator meets it:
+        // first that the control is on the page, then that it really opens the
+        // chooser it promises.
+        System.out.println();
+        System.out.println("  feature checklist");
+        // the click pass above starts a take; put the engine back to idle so the
+        // Recorder page shows what the operator sees when they open the app
+        act.engine().stopCapture(false);
+        layout(root, 1080, 2340);
+        String[][] visible = {
+                {"Recorder", "Arm & record", "arm and record"},
+                {"Recorder", "Monitor:", "monitor button for setting levels"},
+                {"Recorder", "Rate", "sample-rate picker"},
+                {"Recorder", "Depth", "bit-depth picker"},
+                {"Recorder", "Channels", "channel picker"},
+                {"Recorder", "Buffer", "buffer-size picker"},
+                {"Recorder", "Format", "container picker"},
+                {"Recorder", "INPUT", "recording level meters"},
+                {"Recorder", "OUTPUT", "playback level meters"},
+                {"Recorder", "peak hold", "peak-hold explanation"},
+                {"Recorder", "Change folder", "recording folder"},
+                {"Devices", "INPUT", "input device list"},
+                {"Devices", "OUTPUT", "output device list"},
+                {"Mixer", "CHANNEL TRIM", "internal gain per channel"},
+                {"Mixer", "MUTE", "mute"},
+                {"Library", "Pick audio file", "load wav/aiff/flac/ogg for playback"},
+                {"Library", "Scan folder", "import what is already in the folder"},
+                {"Playlist", "Folder", "directory playlist"},
+                {"Playlist", "Auto-advance", "playlist transport"},
+                {"Storage", "used", "available disk space"},
+                {"Storage", "Record here", "choose the recording folder"},
+                {"Storage", "volumes", "external volumes"},
+                {"Exports", "Share", "share a rendered copy"},
+                {"Settings", "Input", "input selection"},
+                {"Settings", "Output", "output selection"},
+                {"About", "Mostakim Billah", "the author"},
+        };
+        int[] pageOf = {
+                MainActivity.PAGE_RECORDER, MainActivity.PAGE_RECORDER, MainActivity.PAGE_RECORDER,
+                MainActivity.PAGE_RECORDER, MainActivity.PAGE_RECORDER, MainActivity.PAGE_RECORDER,
+                MainActivity.PAGE_RECORDER, MainActivity.PAGE_RECORDER, MainActivity.PAGE_RECORDER,
+                MainActivity.PAGE_RECORDER, MainActivity.PAGE_RECORDER, MainActivity.PAGE_DEVICES,
+                MainActivity.PAGE_DEVICES, MainActivity.PAGE_MIXER, MainActivity.PAGE_MIXER,
+                MainActivity.PAGE_LIBRARY, MainActivity.PAGE_LIBRARY, MainActivity.PAGE_PLAYLIST,
+                MainActivity.PAGE_PLAYLIST, MainActivity.PAGE_STORAGE, MainActivity.PAGE_STORAGE,
+                MainActivity.PAGE_STORAGE, MainActivity.PAGE_EXPORTS, MainActivity.PAGE_SETTINGS,
+                MainActivity.PAGE_SETTINGS, MainActivity.PAGE_ABOUT,
+        };
+        for (int i = 0; i < visible.length; i++) {
+            act.navigate(pageOf[i]);
+            layout(root, 1080, 2340);
+            View pr = pageRoot(act);
+            check("feature: " + visible[i][2] + " (" + visible[i][1] + " on " + visible[i][0] + ")",
+                    treeHasText(pr, visible[i][1]));
+        }
+
+        // the choosers, opened the way the operator opens them
+        checkChooser(act, root, MainActivity.PAGE_RECORDER, "Buffer", "the buffer-size chooser",
+                new String[]{"1024 frames", "16384 frames"}, null);
+        checkChooser(act, root, MainActivity.PAGE_RECORDER, "Format", "the container chooser",
+                new String[]{"WAV", "FLAC", "AIFF", "OGG"}, "MP3");
+        checkChooser(act, root, MainActivity.PAGE_RECORDER, "Rate", "the sample-rate chooser",
+                new String[]{"kHz", "192000"}, null);
+        checkChooser(act, root, MainActivity.PAGE_RECORDER, "Depth", "the bit-depth chooser",
+                new String[]{"16", "24", "32"}, null);
+        checkChooser(act, root, MainActivity.PAGE_RECORDER, "Channels", "the channel chooser",
+                new String[]{"channel"}, null);
+        checkChooser(act, root, MainActivity.PAGE_LIBRARY, "\u22ef", "the take menu",
+                new String[]{"Rename", "Delete", "Share", "Export as"}, null);
+        checkChooser(act, root, MainActivity.PAGE_SETTINGS, "Input", "the input-device chooser",
+                new String[]{"System default"}, null);
+        checkChooser(act, root, MainActivity.PAGE_SETTINGS, "Output", "the output-device chooser",
+                new String[]{"System default"}, null);
+
         // ------------------------------------------------------ tablet / rail
         act.navigate(MainActivity.PAGE_DASHBOARD);
         layout(root, 2400, 1600);
@@ -351,6 +426,70 @@ public class UiSmokeTest {
         collect(root, all);
         for (View v : all) {
             if (v instanceof TextView && text.contentEquals(((TextView) v).getText())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Taps a control and inspects the chooser it opens: the items the operator
+     * gets offered, and that a format we do not support is never on the list.
+     */
+    private static void checkChooser(MainActivity act, View root, int page, String tap,
+                                     String what, String[] mustOffer, String mustNotOffer)
+            throws Exception {
+        act.navigate(page);
+        layout(root, 1080, 2340);
+        View target = findClickableContaining(pageRoot(act), tap);
+        if (target == null) {
+            check("feature: " + what + " opens (\"" + tap + "\" is on the page)", false);
+            return;
+        }
+        try {
+            target.performClick();
+        } catch (Throwable t) {
+            check("feature: " + what + " opens without throwing (" + t + ")", false);
+            return;
+        }
+        layout(root, 1080, 2340);
+        android.app.Dialog d = android.app.Dialog.lastShown();
+        String items = d instanceof android.app.AlertDialog
+                ? ((android.app.AlertDialog) d).itemsText() : null;
+        if (items == null) {
+            check("feature: " + what + " really opens", false);
+            return;
+        }
+        check("feature: " + what + " really opens", true);
+        for (String need : mustOffer) {
+            check("feature: " + what + " offers " + need, items.contains(need));
+        }
+        if (mustNotOffer != null) {
+            check("feature: " + what + " never offers " + mustNotOffer,
+                    !items.contains(mustNotOffer));
+        }
+    }
+
+    /** a clickable whose text contains the given string */
+    private static View findClickableContaining(View root, String text) {
+        List<View> all = new ArrayList<>();
+        collect(root, all);
+        for (View v : all) {
+            if (v instanceof TextView && ((TextView) v).getText().toString().contains(text)) {
+                View target = clickTarget(v, root);
+                if (target != null) return target;
+            }
+        }
+        return null;
+    }
+
+    /** any TextView on the page whose text contains the given string */
+    private static boolean treeHasText(View root, String text) {
+        if (root == null) return false;
+        List<View> all = new ArrayList<>();
+        collect(root, all);
+        for (View v : all) {
+            if (v instanceof TextView && ((TextView) v).getText().toString().contains(text)) {
+                return true;
+            }
         }
         return false;
     }

@@ -266,6 +266,58 @@ public class FormatSelfTest {
     }
 
     // ------------------------------------------------------------------ main --
+    /**
+     * Turning a device read into frames.
+     *
+     * A PCM read counts bytes while a float read counts samples, and the capture
+     * loop used to divide the count by the channel count in both cases.  For
+     * every byte-based encoding that inflated the frame count by the sample
+     * width, so the block that had just been read was indexed past its end and
+     * the capture thread died - which on Android takes the whole process down.
+     * This is the arithmetic that has to stay boring.
+     */
+    static void testReadArithmetic() {
+        for (int ch = 1; ch <= 8; ch++) {
+            for (int width = 2; width <= 4; width++) {
+                int frames = 1024;
+                int bytes = frames * ch * width;
+                int blockSamples = frames * ch;
+                String what = width + "-byte, " + ch + " ch";
+                check(Pcm.framesFromBytes(bytes, ch, width) == frames,
+                        "a full read of " + what + " is " + frames + " frames");
+                check(Pcm.samplesFromBytes(bytes, width) == blockSamples,
+                        "a full read of " + what + " is " + blockSamples + " samples");
+                check(Pcm.samplesFromBytes(bytes, width) <= blockSamples,
+                        "a full read of " + what + " fits the block");
+                // every partial read must stay inside the block too
+                for (int missing = 1; missing < width * ch; missing++) {
+                    check(Pcm.samplesFromBytes(bytes - missing, width) <= blockSamples,
+                            "a short read of " + what + " (" + missing + " bytes missing) fits");
+                    check(Pcm.framesFromBytes(bytes - missing, ch, width) ==
+                                    (bytes - missing) / (ch * width),
+                            "a short read of " + what + " rounds down to whole frames");
+                }
+            }
+        }
+
+        // the exact shape that crashed: 4096 bytes is one 1024-frame 16-bit stereo read
+        check(Pcm.framesFromBytes(4096, 2, 2) == 1024,
+                "4096 bytes of 16-bit stereo is 1024 frames, not " + (4096 / 2));
+        check(Pcm.samplesFromBytes(4096, 2) == 2048, "4096 bytes of 16-bit audio is 2048 samples");
+        check(Pcm.samplesFromBytes(4096, 3) == 1365, "4096 bytes of 24-bit audio is 1365 samples");
+        check(Pcm.samplesFromBytes(4096, 4) == 1024, "4096 bytes of 32-bit audio is 1024 samples");
+        check(Pcm.framesFromBytes(4096, 6, 3) == 227, "4096 bytes of 24-bit 6-channel is 227 frames");
+
+        // nothing negative or partial may ever become a frame count
+        check(Pcm.samplesFromBytes(0, 2) == 0, "an empty read is zero samples");
+        check(Pcm.framesFromBytes(0, 2, 2) == 0, "an empty read is zero frames");
+        check(Pcm.framesFromBytes(-2, 2, 2) == 0, "an error result is zero frames");
+        check(Pcm.samplesFromBytes(-16, 4) == 0, "a negative read is zero samples");
+        check(Pcm.samplesFromBytes(3, 4) == 0, "a partial 32-bit sample is dropped");
+        check(Pcm.samplesFromBytes(2, 3) == 0, "a partial 24-bit sample is dropped");
+        check(Pcm.framesFromBytes(5, 2, 2) == 1, "a partial frame still yields whole frames");
+    }
+
     public static void main(String[] args) throws Exception {
         File dir = new File(args.length > 0 ? args[0] : "/tmp/audiorec-fmt");
         dir.mkdirs();
@@ -295,6 +347,7 @@ public class FormatSelfTest {
         }
 
         testOgg(dir);
+        testReadArithmetic();
 
         System.out.println();
         System.out.println(failures == 0

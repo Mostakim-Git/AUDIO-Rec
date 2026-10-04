@@ -19,6 +19,27 @@ public final class Pcm {
     /** dBFS floor used everywhere so silence is a finite number */
     public static final float FLOOR_DB = -120f;
 
+    /**
+     * Samples in one device read.
+     *
+     * A PCM read counts *bytes*, not samples: 4096 bytes of 16-bit audio are
+     * 2048 samples, 1365 of 24-bit, 1024 of float.  Dividing the byte count by
+     * the channel count instead - which is what the capture loop used to do -
+     * overruns the block by the sample width, and the resulting
+     * ArrayIndexOutOfBoundsException on the capture thread kills the process.
+     */
+    public static int samplesFromBytes(int byteCount, int bytesPerSample) {
+        if (byteCount <= 0 || bytesPerSample <= 0) return 0;
+        return byteCount / bytesPerSample;      // a partial sample is dropped
+    }
+
+    /** whole interleaved frames in one device read */
+    public static int framesFromBytes(int byteCount, int channels, int bytesPerSample) {
+        int perFrame = channels * bytesPerSample;
+        if (byteCount <= 0 || perFrame <= 0) return 0;
+        return byteCount / perFrame;
+    }
+
     private static final float INV_32768 = 1f / 32768f;
     private static final float INV_8388608 = 1f / 8388608f;
 

@@ -10,23 +10,24 @@ app for musicians, podcasters and audio engineers. Plug in a USB audio interface
 set the level, hit record. Nothing is uploaded, nothing needs an account, and the
 app has no network permission at all.
 
-*by Mostakim Billah · MIT licensed · v1.0.1 · Android 10 (API 29) and newer*
+*by Mostakim Billah · MIT licensed · v1.0.2 · Android 10 (API 29) and newer*
 
 ---
 
 ## Install
 
-Download **[AUDIO-rec.apk](https://github.com/Mostakim-Git/AUDIO-Rec/releases/download/v1.0.1/AUDIO-rec.apk)**
-from the [v1.0.1 release](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.1) —
-585,083 bytes (571 KiB), signed v1 + v2 + v3, SHA-256
-`9778262907a8a9498b12337a354ac70d5fe0e7b95eedb03ab864ffc25659a605`. The same file is
+Download **[AUDIO-rec.apk](https://github.com/Mostakim-Git/AUDIO-Rec/releases/download/v1.0.2/AUDIO-rec.apk)**
+from the [v1.0.2 release](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.2) —
+589,179 bytes (575 KiB), signed v1 + v2 + v3, SHA-256
+`f938e9a9f28e690fa19acebbfb10010df8069cca48c08422c2f2e65724444426`. The same file is
 committed at [`release/AUDIO-rec.apk`](release/AUDIO-rec.apk).
 
-**1.0.1 fixes the blank window.** 1.0.0's shell never found its panes (it looked for them in
-an XML-inflation callback the code-built interface never triggers), so nothing was ever laid
-out, and four blocks of UI were built and then never attached to a parent. Details and the
-new verification layers are in
-[`release/RELEASE-NOTES-1.0.1.md`](release/RELEASE-NOTES-1.0.1.md).
+**1.0.2 fixes the force-stop when recording starts.** The capture loop divided a device read -
+which counts bytes - by the channel count, so the block it had just read was indexed past its
+end and the capture thread died, taking the process with it. Frame arithmetic now goes through
+one tested place, listeners and both audio threads are wrapped so nothing they do can kill the
+app, and MP3 can no longer be imported or decoded. Details, plus the item-by-item feature
+audit, are in [`release/RELEASE-NOTES-1.0.2.md`](release/RELEASE-NOTES-1.0.2.md).
 
 That size is the whole app, not a stub: there are no third-party libraries in it at all —
 no AndroidX, no Kotlin runtime, no support jars — so 340 app classes, all twelve screens,
@@ -210,7 +211,8 @@ bash tools/test/run.sh             # every check below; artifacts in build/fmt
 ```
 
 * `tools/test/FormatSelfTest.java` writes every container at every rate/depth and
-  checks the framing, the counters and the decoders (133 checks)
+  checks the framing, the counters and the decoders, and covers the device-read
+  arithmetic that turns a byte count into frames (817 checks)
 * `tools/test/gen_foreign.py` builds a corpus with `struct` — odd-sized chunks,
   pad bytes, 8-bit unsigned, 32-bit int, IEEE float, 20-in-24 bit EXTENSIBLE,
   RF64 with a tail chunk, AIFF-C `sowt`/`fl32`, unsupported codecs, truncated and
@@ -237,9 +239,14 @@ bash tools/test/run.sh             # every check below; artifacts in build/fmt
 * `tools/test/ui/` is a headless UI harness: it compiles the real UI sources
   against a small Android stand-in, constructs the real `MainActivity`, measures
   and lays out the shell and all twelve pages at phone and tablet size, walks the
-  view tree and fires every click handler (95 checks). It is what caught the
-  blank window, and it prints the view and text counts of every page so a page
-  that renders nothing cannot pass
+  view tree, fires every click handler, opens every chooser and checks the
+  feature list item by item (148 checks). It is what caught the blank window, and
+  it prints the view and text counts of every page so a page that renders
+  nothing cannot pass
+* `tools/zip_check.py` inspects the signed APK with nothing but the standard
+  library — real zip, required entries, dex size, no networking or MP3 code,
+  4 KiB alignment, v1 + v2/v3 signatures, branding (22 checks) — so the package
+  can be re-verified anywhere it is published from
 * `tools/minsdk_check.py` compiles the sources against the **API 29** platform jar
   (the declared minimum) and audits every newer symbol: constants must be proven
   inlined into the dex, methods must sit behind an `SDK_INT` guard

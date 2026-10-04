@@ -306,9 +306,23 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
     /** called by the activity after the picker returns */
     public void handlePicked(Uri uri) {
         if (uri == null) return;
+        // the picker offers audio/*, which includes formats this app will not
+        // play - MP3 above all (patented).  Refuse them here, by name and again
+        // by content below, so no such file can reach the library.
+        String picked = uri.getLastPathSegment();
+        if (picked != null && !Formats.isPlayable(picked)) {
+            toast("AUDIO-rec plays " + Formats.playbackExtensions()
+                    + " only - MP3 and other codecs are not supported.");
+            return;
+        }
         File dir = App.get().prefs().recordDir();
         if (dir == null) dir = App.defaultRecordDir(act);
         File out = new File(dir, "imported-" + System.currentTimeMillis() + guessExt(uri));
+        // the same rule for the extension we are about to give the copy
+        if (!Formats.isPlayable(out.getName())) {
+            toast("AUDIO-rec cannot import that format.");
+            return;
+        }
         try {
             java.io.InputStream in = act.getContentResolver().openInputStream(uri);
             java.io.OutputStream os = new java.io.FileOutputStream(out);
@@ -322,6 +336,15 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
             os.close();
             in.close();
             FormatProbe.Info info = FormatProbe.probe(out);
+            if (!Formats.CONTAINERS.contains(info.container)) {
+                // the extension lied: throw the copy away instead of keeping a
+                // track the engine cannot decode
+                //noinspection ResultOfMethodCallIgnored
+                out.delete();
+                toast("That file is not " + Formats.playbackExtensions()
+                        + " - nothing was imported.");
+                return;
+            }
             Track t = new Track();
             t.title = out.getName();
             t.filePath = out.getAbsolutePath();

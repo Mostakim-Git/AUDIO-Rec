@@ -13,6 +13,7 @@ public class AlertDialog extends Dialog implements DialogInterface {
 
     private final Button[] mButtons = new Button[]{
             new Button(null), new Button(null), new Button(null)};
+    private CharSequence[] mItems;
 
     AlertDialog(Context c) {
         super(c);
@@ -23,6 +24,18 @@ public class AlertDialog extends Dialog implements DialogInterface {
     }
 
     public void setMessage(CharSequence message) { }
+
+    public void setItems(CharSequence[] items) { mItems = items; }
+
+    /** the choice list this dialog was built with, or null for a plain dialog */
+    public CharSequence[] items() { return mItems; }
+
+    public String itemsText() {
+        if (mItems == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (CharSequence c : mItems) sb.append(c).append('\n');
+        return sb.toString();
+    }
 
     public void setView(View v) { setContentView(v); }
 
@@ -124,6 +137,7 @@ public class AlertDialog extends Dialog implements DialogInterface {
 
         public AlertDialog create() {
             AlertDialog d = new AlertDialog(mContext);
+            d.setItems(mItems);
             d.setTitle(mTitle);
             d.setMessage(mMessage);
             if (mView != null) d.setContentView(mView);

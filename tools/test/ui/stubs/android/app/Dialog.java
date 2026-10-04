@@ -7,6 +7,13 @@ import android.view.Window;
 
 public class Dialog implements DialogInterface {
 
+    /** the dialog most recently shown, so a test can inspect what it offered */
+    private static Dialog sLast;
+
+    public static Dialog lastShown() {
+        return sLast;
+    }
+
     private final Context mContext;
     private final Window mWindow = new Window();
     private boolean mShowing;
@@ -28,7 +35,10 @@ public class Dialog implements DialogInterface {
 
     public Context getContext() { return mContext; }
 
-    public void show() { mShowing = true; }
+    public void show() {
+        mShowing = true;
+        sLast = this;
+    }
 
     @Override
     public void dismiss() {

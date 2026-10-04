@@ -11,6 +11,8 @@ import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.util.Log;
 
+import com.mostakim.audiorec.util.Formats;
+
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -94,6 +96,12 @@ public class PlaybackEngine {
     public boolean play(File file, String title, int outputDeviceId) {
         stop();
         if (file == null || !file.exists()) return false;
+        // WAV / AIFF / FLAC / OGG only: MP3 is patented and is never decoded
+        // here, even if an older library row still points at one
+        if (!Formats.isPlayable(file.getName())) {
+            Log.w(TAG, "refusing to play " + file.getName() + ": not a supported container");
+            return false;
+        }
         mTitle = title == null ? file.getName() : title;
         mPositionMs = 0;
         mDurationMs = 0;
@@ -139,13 +147,21 @@ public class PlaybackEngine {
 
     // ------------------------------------------------------------ the thread
     private void run(File file, int outputDeviceId) {
-        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
-        RawPcmReader raw = RawPcmReader.open(file);
-        if (raw != null) {
-            runRaw(raw, outputDeviceId);
-            return;
+        // a decode that fails on one file must not kill the playback thread:
+        // an uncaught exception there takes the whole process down
+        try {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
+            RawPcmReader raw = RawPcmReader.open(file);
+            if (raw != null) {
+                runRaw(raw, outputDeviceId);
+                return;
+            }
+            runPlatform(file, outputDeviceId);
+        } catch (Throwable t) {
+            Log.w(TAG, "playback thread failed", t);
+        } finally {
+            setState(State.STOPPED);
         }
-        runPlatform(file, outputDeviceId);
     }
 
     private AudioTrack buildTrack(int sampleRate, int channels, int deviceId) {

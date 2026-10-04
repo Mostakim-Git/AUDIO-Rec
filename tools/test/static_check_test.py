@@ -43,6 +43,11 @@ CASES = [
      "                ViewGroup.LayoutParams.MATCH_PARENT, 0));\n"
      "    }\n\n    private void permissionsCard() {",
      "x 0 with no weight is invisible"),
+    ("a device read divided by the channel count (the force-stop of 1.0.x)",
+     "com/mostakim/audiorec/audio/AudioEngine.java",
+     "            int framesRead = decoded / channels;",
+     "            int framesRead = read / channels;",
+     "a device read counts bytes"),
     ("a screen that fills nothing in",
      "com/mostakim/audiorec/ui/screens/SessionsScreen.java",
      None, None,

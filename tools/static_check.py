@@ -20,7 +20,15 @@ Three classes of bug, all of which compile cleanly and then fail on the phone:
    different number of placeholders, which either shows a literal ``%s`` or
    throws.
 
-4. the view tree - the interface is built in Java, so a container that is filled
+4. device reads - ``AudioRecord.read()`` returns a *byte* count for every PCM
+   encoding and a *sample* count only for float; dividing it by the channel
+   count inflates the frame count by the sample width, and the block that was
+   just read is then indexed past its end.  That is an
+   ArrayIndexOutOfBoundsException on the capture thread, which on Android takes
+   the whole process down - the app force-stops the moment recording starts.
+   Frame arithmetic goes through ``Pcm.framesFromBytes``.
+
+5. the view tree - the interface is built in Java, so a container that is filled
    in and then never handed to a parent draws nothing at all.  Four pages came
    out blank or half-blank this way (one card, two list loops, one empty state).
    Also caught here: a child laid out 0 pixels tall with no weight, which is
@@ -182,6 +190,28 @@ def check_extras(root):
     stats["extras read"] = len(reads)
 
 
+# ----------------------------------------------------------------- audio reads
+# a count that came back from a device read must not be divided by channels
+READ_DIVISION = re.compile(
+    r"\b(read|bytesRead|byteCount|got|available)\s*/\s*"
+    r"(channels|ch|mChannels|channelCount|mActiveChannels|numChannels)\b")
+
+
+def check_audio_reads(root):
+    """byte counts that are mistaken for sample counts"""
+    for path in java_files(root):
+        if os.sep + "audio" + os.sep not in path:
+            continue
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for n, line in enumerate(fh, 1):
+                if READ_DIVISION.search(line):
+                    problems.append(
+                        "%s:%d  a device read counts bytes - use Pcm.framesFromBytes("
+                        "read, channels, bytesPerSample) instead of dividing by the "
+                        "channel count" % (path, n))
+                    stats["audio read divisions"] = stats.get("audio read divisions", 0) + 1
+
+
 # ------------------------------------------------------------------ view tree
 # the shell, every page and every dialog is built in Java; nothing is inflated
 VIEW_TYPES = ("LinearLayout|FrameLayout|RelativeLayout|TableLayout|TableRow|"
@@ -300,6 +330,7 @@ def main():
     check_formats(root, strings)
     check_extras(root)
     check_view_tree(root)
+    check_audio_reads(root)
     for k in sorted(stats):
         print("  %-24s %d" % (k, stats[k]))
     if problems:

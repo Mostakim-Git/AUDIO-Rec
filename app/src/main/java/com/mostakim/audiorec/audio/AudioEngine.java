@@ -124,6 +124,32 @@ public final class AudioEngine {
     }
 
     // ============================================================= listeners =
+    /** one listener call, used by {@link #dispatch} */
+    private interface Call {
+        void to(Listener l);
+    }
+
+    /**
+     * Hands an event to every listener.
+     *
+     * Listeners are UI code and can throw for reasons that have nothing to do
+     * with audio: a view that was released while a take was running, a dialog
+     * that is gone, a notification the system refused.  Such an exception used
+     * to escape into the capture thread, and Android kills the entire process
+     * when a thread dies uncaught - which is exactly what "the app keeps
+     * stopping" looks like from the outside.  A failing listener is now a
+     * logged warning and the audio keeps running.
+     */
+    private void dispatch(Call call) {
+        for (Listener l : mListeners) {
+            try {
+                call.to(l);
+            } catch (Throwable t) {
+                Log.w(TAG, "an audio listener threw - continuing", t);
+            }
+        }
+    }
+
     public void addListener(Listener l) {
         if (l != null && !mListeners.contains(l)) mListeners.add(l);
     }
@@ -133,24 +159,24 @@ public final class AudioEngine {
     }
 
     private void onPlaybackLevels(float[] rms, float[] peak, int ch) {
-        for (Listener l : mListeners) l.onPlaybackLevels(rms, peak, ch);
+        dispatch(l -> l.onPlaybackLevels(rms, peak, ch));
     }
 
     private void onPlaybackState(PlaybackEngine.State s, String title) {
-        for (Listener l : mListeners) l.onPlaybackState(s, title);
+        dispatch(l -> l.onPlaybackState(s, title));
     }
 
     private void onPlaybackPosition(long pos, long dur) {
-        for (Listener l : mListeners) l.onPlaybackPosition(pos, dur);
+        dispatch(l -> l.onPlaybackPosition(pos, dur));
     }
 
     private void fireState(State s) {
         mState = s;
-        for (Listener l : mListeners) l.onEngineState(s);
+        dispatch(l -> l.onEngineState(s));
     }
 
     private void fireError(String msg) {
-        for (Listener l : mListeners) l.onError(msg);
+        dispatch(l -> l.onError(msg));
     }
 
     // =============================================================== devices =
@@ -200,7 +226,7 @@ public final class AudioEngine {
         mOutput = sel;
         if (mOutput != null && !mOutput.key.equals(wantOut)) mPrefs.setOutputDeviceId(mOutput.key);
 
-        for (Listener l : mListeners) l.onDevicesChanged();
+        dispatch(l -> l.onDevicesChanged());
     }
 
     private AudioDevice find(List<AudioDevice> list, String key) {
@@ -262,7 +288,7 @@ public final class AudioEngine {
         if (wasRunning) stopCapture(wasRecording);
         mInput = d;
         mPrefs.setInputDeviceId(d.key);
-        for (Listener l : mListeners) l.onDevicesChanged();
+        dispatch(l -> l.onDevicesChanged());
         if (wasRunning) startMonitor();
     }
 
@@ -271,7 +297,7 @@ public final class AudioEngine {
         mOutput = d;
         mPrefs.setOutputDeviceId(d.key);
         if (mRunning && mPrefs.monitor()) restartMonitorTrack();
-        for (Listener l : mListeners) l.onDevicesChanged();
+        dispatch(l -> l.onDevicesChanged());
     }
 
     /**
@@ -631,7 +657,39 @@ public final class AudioEngine {
     }
 
     // ---------------------------------------------------------------- thread -
+
+    /**
+     * Runs the capture loop and makes sure nothing escapes it.
+     *
+     * Whatever happens below - a device read that fails, a writer that throws,
+     * a listener that blows up, a bug of ours - the capture thread must never
+     * die from an uncaught exception.  If it does, Android tears the process
+     * down and the operator sees "AUDIO-rec keeps stopping" with the take
+     * unfinished.  Here the take is closed properly and the reason is reported.
+     */
     private void captureLoop() {
+        try {
+            runCapture();
+        } catch (Throwable t) {
+            Log.w(TAG, "capture thread failed", t);
+            Recorder rec = mRecorder;
+            if (rec != null) {
+                try {
+                    Recorder.Result r = rec.stop();
+                    dispatch(l -> l.onRecordingFinished(r));
+                } catch (Throwable ignored) {
+                }
+                mRecorder = null;
+            }
+            postError("Capture stopped: " + t);
+        } finally {
+            mRunning = false;
+            closeRecord();
+            fireState(State.IDLE);
+        }
+    }
+
+    private void runCapture() {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
         final int channels = mActiveChannels;
         final int encoding = mInputEncoding;
@@ -646,13 +704,20 @@ public final class AudioEngine {
         long lastTickAt = 0;
         while (mRunning) {
             int read;
+            int decoded = 0;               // samples this read actually produced
             try {
                 if (encoding == AudioFormat.ENCODING_PCM_FLOAT) {
                     read = mRecord.read(floatBuf, 0, samples, AudioRecord.READ_BLOCKING);
-                    if (read > 0) System.arraycopy(floatBuf, 0, mBlock, 0, read);
+                    if (read > 0) {
+                        System.arraycopy(floatBuf, 0, mBlock, 0, read);
+                        decoded = read;        // a float read counts samples
+                    }
                 } else {
                     read = mRecord.read(byteBuf, 0, byteBuf.length, AudioRecord.READ_BLOCKING);
-                    if (read > 0) decodeBytes(byteBuf, read, encoding, mBlock, shortBuf, intBuf);
+                    if (read > 0) {
+                        // a PCM read counts bytes - convert before anything else
+                        decoded = decodeBytes(byteBuf, read, encoding, mBlock, shortBuf, intBuf);
+                    }
                 }
             } catch (Exception e) {
                 Log.w(TAG, "capture read failed", e);
@@ -669,7 +734,10 @@ public final class AudioEngine {
                 if (read == AudioRecord.ERROR_BAD_VALUE) break;
                 continue;
             }
-            int framesRead = read / channels;
+            // never let a miscalculated block index past the buffer: a crash on
+            // this thread is a crash of the whole app
+            if (decoded > mBlock.length) decoded = mBlock.length;
+            int framesRead = decoded / channels;
             if (framesRead <= 0) continue;
             int sampleCount = framesRead * channels;
 
@@ -682,9 +750,9 @@ public final class AudioEngine {
                 mLastMeterAt = now;
                 float[] rmsCopy = Arrays.copyOf(mLevelRms, channels);
                 float[] peakCopy = Arrays.copyOf(mLevelPeak, channels);
-                for (Listener l : mListeners) l.onLevels(rmsCopy, peakCopy, channels);
+                dispatch(l -> l.onLevels(rmsCopy, peakCopy, channels));
                 float[] scope = decimate(mBlock, framesRead, channels);
-                for (Listener l : mListeners) l.onScope(scope, framesRead / SCOPE_DECIMATE, channels);
+                dispatch(l -> l.onScope(scope, framesRead / SCOPE_DECIMATE, channels));
             }
 
             // ---- monitoring fold-back
@@ -714,7 +782,7 @@ public final class AudioEngine {
                     long frames2 = rec.result().frames;
                     long bytes = rec.bytesWritten();
                     long elapsed = t - mRecordingStartedAt;
-                    for (Listener l : mListeners) l.onRecordingTick(frames2, bytes, elapsed);
+                    dispatch(l -> l.onRecordingTick(frames2, bytes, elapsed));
                 }
             }
         }
@@ -723,7 +791,7 @@ public final class AudioEngine {
         boolean wasRecording = rec != null && rec.isOpen();
         if (wasRecording) {
             Recorder.Result r = rec.stop();
-            for (Listener l : mListeners) l.onRecordingFinished(r);
+            dispatch(l -> l.onRecordingFinished(r));
         }
         mRecorder = null;
         closeRecord();
@@ -759,37 +827,40 @@ public final class AudioEngine {
         return false;   // float is read straight into mBlock
     }
 
-    private void decodeBytes(byte[] src, int byteCount, int encoding, float[] dst,
-                             short[] shortBuf, int[] intBuf) {
+    /** @return the number of samples written into {@code dst} */
+    private int decodeBytes(byte[] src, int byteCount, int encoding, float[] dst,
+                            short[] shortBuf, int[] intBuf) {
+        int n;
         switch (encoding) {
             case AudioFormat.ENCODING_PCM_24BIT_PACKED:
-                Pcm.int24ToFloat(src, byteCount / 3, dst);
-                break;
+                n = Pcm.samplesFromBytes(byteCount, 3);
+                Pcm.int24ToFloat(src, n, dst);
+                return n;
             case AudioFormat.ENCODING_PCM_32BIT: {
-                int n = byteCount / 4;
+                n = Pcm.samplesFromBytes(byteCount, 4);
                 for (int i = 0; i < n; i++) {
                     int v = (src[i * 4] & 0xFF) | ((src[i * 4 + 1] & 0xFF) << 8)
                             | ((src[i * 4 + 2] & 0xFF) << 16) | (src[i * 4 + 3] << 24);
                     dst[i] = (float) (v / 2147483648.0);
                 }
-                break;
+                return n;
             }
             case AudioFormat.ENCODING_PCM_FLOAT: {
-                int n = byteCount / 4;
+                n = Pcm.samplesFromBytes(byteCount, 4);
                 for (int i = 0; i < n; i++) {
                     int v = (src[i * 4] & 0xFF) | ((src[i * 4 + 1] & 0xFF) << 8)
                             | ((src[i * 4 + 2] & 0xFF) << 16) | (src[i * 4 + 3] << 24);
                     dst[i] = Float.intBitsToFloat(v);
                 }
-                break;
+                return n;
             }
             default: {
-                int n = byteCount / 2;
+                n = Pcm.samplesFromBytes(byteCount, 2);
                 for (int i = 0; i < n; i++) {
                     int v = (src[i * 2] & 0xFF) | (src[i * 2 + 1] << 8);
                     dst[i] = v * (1f / 32768f);
                 }
-                break;
+                return n;
             }
         }
     }
@@ -924,7 +995,7 @@ public final class AudioEngine {
             if (finishTake) {
                 Recorder.Result res = mRecorder.stop();
                 mRecorder = null;
-                for (Listener l : mListeners) l.onRecordingFinished(res);
+                dispatch(l -> l.onRecordingFinished(res));
             } else {
                 mRecorder = null;
             }
@@ -962,7 +1033,7 @@ public final class AudioEngine {
 
     private void postError(final String msg) {
         Log.w(TAG, msg);
-        for (Listener l : mListeners) l.onError(msg);
+        dispatch(l -> l.onError(msg));
     }
 
     // ============================================================== playback =
