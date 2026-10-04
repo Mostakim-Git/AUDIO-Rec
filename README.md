@@ -42,7 +42,7 @@ npm run android:open
 
 Set `CORS_ORIGINS=https://localhost` on the API when it is cross-origin from the Android app. Keep the API on HTTPS so microphone capture and secure session cookies work as intended. For a hosted PWA and a cross-origin API, include both the PWA origin and `https://localhost` in `CORS_ORIGINS`. The same-origin web development setup needs no `VITE_API_URL`; it uses `/api`. On Windows, set `$env:VITE_API_URL` in PowerShell before running the npm command.
 
-The `Build Android APK` GitHub Actions workflow also runs on pushes to the session branch and uploads `AUDIO-rec-debug-apk` as a downloadable workflow artifact. To bake in the production API URL for GitHub-built APKs, add a repository Actions variable named `AUDIOREC_API_URL` with the HTTPS base URL ending in `/api`. Android Studio and the Android SDK are required for local APK builds or device testing.
+The `Build Android APK` GitHub Actions workflow runs on pushes to the session branch, uploads `AUDIO-rec-debug-apk`, and publishes the APK as a GitHub Release asset. To bake in the production API URL for GitHub-built APKs, add a repository Actions variable named `AUDIOREC_API_URL` with the HTTPS base URL ending in `/api`. Android Studio and the Android SDK are required for local APK builds or device testing.
 
 ## What is included
 
