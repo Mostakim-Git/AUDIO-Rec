@@ -1,0 +1,16 @@
+{
+  "appId": "com.audiorec.workstation",
+  "appName": "AUDIO-rec",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 700,
+      "backgroundColor": "#252621",
+      "showSpinner": false
+    }
+  }
+}

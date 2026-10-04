@@ -1,0 +1,24 @@
+{
+  "id": "/",
+  "name": "AUDIO-rec — Recording Studio",
+  "short_name": "AUDIO-rec",
+  "description": "A considered recording space for your music, podcasts and audio takes.",
+  "start_url": "/?source=android-app",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#252621",
+  "theme_color": "#252621",
+  "categories": ["music", "audio", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icons/audio-rec-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/audio-rec-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/audio-rec-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Open the studio", "short_name": "Studio", "description": "Jump into your active recording session.", "url": "/?view=sessions", "icons": [{ "src": "/icons/audio-rec-icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "New session", "short_name": "New session", "description": "Create a new recording session.", "url": "/?new=session", "icons": [{ "src": "/icons/audio-rec-icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}
