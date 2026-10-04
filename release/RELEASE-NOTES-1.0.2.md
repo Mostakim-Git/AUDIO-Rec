@@ -11,6 +11,11 @@ musicians, podcasters and recording engineers.
 589,179 bytes (575 KiB), version 1.0.2, signed (v1 + v2 + v3)<br>
 SHA-256 `f938e9a9f28e690fa19acebbfb10010df8069cca48c08422c2f2e65724444426`
 
+GitHub stores that digest for this asset, so the download is byte-for-byte the file that was
+built, checked and signed here — and so you can confirm it yourself with
+`sha256sum AUDIO-rec.apk`. A second copy lives in the repository at
+[`release/AUDIO-rec.apk`](https://github.com/Mostakim-Git/AUDIO-Rec/blob/v1.0.2/release/AUDIO-rec.apk).
+
 ## The force-stop when recording starts — fixed
 
 Tapping record killed the app on any device whose input is not float. The capture loop read a
@@ -93,12 +98,14 @@ bash tools/test/run.sh             # every layer below
 | Sharing rules for the Drive/WhatsApp content provider | 38 checks pass |
 | Headless UI harness: shell, all 12 pages, choosers, **the feature checklist** | 148 checks pass |
 | Static rules (format strings, extras, view tree, byte/sample mistakes) + mutation test | 6/6 defect shapes caught |
-| Portable zip inspection of the signed APK | 22 checks pass |
+| Portable zip inspection of the signed APK, including the shipped dex declaring
+  the byte-aware frame arithmetic | 25 checks pass |
+| Negative control: the inspection rejects a package whose dex lost that helper | 1 mutation caught |
 | Signed-APK release gate (offline proof, no MP3, components, branding, alignment) | 39 checks pass |
 | Minimum-SDK audit against the Android 10 platform jar | every API-30+ symbol inlined or SDK-guarded |
 
-The read arithmetic is now covered by 684 assertions across all four sample widths, one to eight
-channels and partial reads — including the exact 4096-byte 16-bit stereo case that used to kill
+The read arithmetic is now covered by 684 assertions across the three byte widths (16-, 24- and
+32-bit), one to eight channels and partial reads — including the exact 4096-byte 16-bit stereo case that used to kill
 the capture thread — and a static rule fails the build if a device read is ever divided by the
 channel count again.
 

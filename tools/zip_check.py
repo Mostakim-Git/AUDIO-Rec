@@ -10,7 +10,8 @@ is the portable half: it opens the package as a zip and checks the things that
 must be true of the file itself, on any machine with Python.
 
   * the file is a real zip/APK and holds the three entries every APK needs
-  * the dex is substantial (not a stub) and carries no networking or MP3 code
+  * the dex is substantial (not a stub), carries no networking or MP3 code, and
+    declares the byte-aware capture arithmetic the sources in the tree use
   * the signature is present three ways: v1 (META-INF), v2/v3 (APK Signing Block)
   * stored entries sit on 4 KiB boundaries (zipalign -p 4096)
   * the branding entries the app is built around are in the package
@@ -47,6 +48,50 @@ def check(what, ok, detail=""):
         problems.append(what)
 
 
+def dex_strings_type_methods(blob):
+    """(strings, type descriptors, method ids) from a dex, with plain struct reads.
+
+    A method id names its class, its shorty proto and its name; that is enough to
+    check that the shipped bytecode really declares the fix instead of trusting
+    that the APK in hand was built from the sources in the tree.
+    """
+    def u32(off):
+        return struct.unpack_from("<I", blob, off)[0]
+
+    def uleb(off):
+        value = shift = 0
+        while True:
+            byte = blob[off]
+            off += 1
+            value |= (byte & 0x7F) << shift
+            if not byte & 0x80:
+                return off
+            shift += 7
+
+    def string_at(idx):
+        # string_data_item: uleb128 utf16 length, then NUL-terminated MUTF-8
+        off = uleb(u32(strings_off + 4 * idx))
+        end = blob.index(b"\x00", off)
+        return blob[off:end].decode("utf-8", "replace")
+
+    strings_size, strings_off = u32(0x38), u32(0x3C)
+    types_size, types_off = u32(0x40), u32(0x44)
+    protos_off = u32(0x4C)
+    # header: proto_ids at 0x48, field_ids at 0x50, method_ids at 0x58
+    methods_size, methods_off = u32(0x58), u32(0x5C)
+
+    strings = [string_at(i) for i in range(strings_size)]
+    types = [strings[u32(types_off + 4 * i)] for i in range(types_size)]
+
+    methods = []
+    for i in range(methods_size):
+        class_idx, proto_idx, name_idx = struct.unpack_from(
+            "<HHI", blob, methods_off + 8 * i)
+        shorty = strings[u32(protos_off + 12 * proto_idx)]
+        methods.append((types[class_idx], strings[name_idx], shorty))
+    return strings, types, methods
+
+
 def main(path):
     if not os.path.isfile(path):
         print("  FAIL  %s does not exist" % path)
@@ -76,6 +121,20 @@ def main(path):
                 check("dex is free of %r" % needle.decode("ascii", "replace"),
                       needle not in blob)
             found = [u for u in URL.findall(blob) if not u.startswith(AOSP_NAMESPACE)]
+            strings, types, methods = dex_strings_type_methods(blob)
+            declared = {(cls, name): shorty for cls, name, shorty in methods}
+            # a shorty proto is one character per type - return type first - so
+            # int f(int, int, int) is "IIII"
+            frame = declared.get(("Lcom/mostakim/audiorec/audio/Pcm;", "framesFromBytes"))
+            check("shipped dex declares the byte-aware frame math (Pcm.framesFromBytes)",
+                  frame == "IIII", "int (int, int, int) -> %s" % (frame or "missing"))
+            samples = declared.get(("Lcom/mostakim/audiorec/audio/Pcm;", "samplesFromBytes"))
+            check("shipped dex declares Pcm.samplesFromBytes", samples == "III",
+                  "int (int, int) -> %s" % (samples or "missing"))
+            decode = declared.get(
+                ("Lcom/mostakim/audiorec/audio/AudioEngine;", "decodeBytes"))
+            check("AudioEngine.decodeBytes reports a sample count in the shipped dex",
+                  bool(decode) and decode[0] == "I", "shorty %s" % (decode or "missing"))
             check("dex carries no network URLs", not found,
                   ", ".join(u.decode("ascii", "replace") for u in found[:3]))
 

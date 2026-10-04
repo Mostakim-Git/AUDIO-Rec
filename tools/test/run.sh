@@ -81,6 +81,14 @@ else
 fi
 
 echo
+echo "==> the package inspection catches a dex without the fixed frame arithmetic"
+if [ -f release/AUDIO-rec.apk ]; then
+    python3 tools/test/zip_check_test.py
+else
+    echo "    skipped: build the APK first"
+fi
+
+echo
 echo "==> view-tree rules catch the defects they exist for"
 python3 tools/test/static_check_test.py
 

@@ -245,8 +245,12 @@ bash tools/test/run.sh             # every check below; artifacts in build/fmt
   nothing cannot pass
 * `tools/zip_check.py` inspects the signed APK with nothing but the standard
   library — real zip, required entries, dex size, no networking or MP3 code,
-  4 KiB alignment, v1 + v2/v3 signatures, branding (22 checks) — so the package
-  can be re-verified anywhere it is published from
+  4 KiB alignment, v1 + v2/v3 signatures, branding, and the shipped dex
+  declaring the byte-aware frame arithmetic (25 checks) — so the package can be
+  re-verified anywhere it is published from
+* `tools/test/zip_check_test.py` is the negative control for that inspection:
+  it renames the helper inside the released dex and requires the checker to
+  reject the package
 * `tools/minsdk_check.py` compiles the sources against the **API 29** platform jar
   (the declared minimum) and audits every newer symbol: constants must be proven
   inlined into the dex, methods must sit behind an `SDK_INT` guard
