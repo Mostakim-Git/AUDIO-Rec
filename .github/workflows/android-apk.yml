@@ -13,9 +13,6 @@ jobs:
   assemble:
     name: Assemble installable debug APK
     runs-on: ubuntu-24.04
-    env:
-      # Set AUDIOREC_API_URL in GitHub Actions variables to bake in a deployed API URL.
-      VITE_API_URL: ${{ vars.AUDIOREC_API_URL }}
     steps:
       - name: Check out source
         uses: actions/checkout@v5
@@ -37,6 +34,9 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci
+
+      - name: Test workspace and audio encoders
+        run: npm test
 
       - name: Build and sync web app
         run: npm run android:sync
@@ -71,4 +71,4 @@ jobs:
           gh release create "$tag" "$apk" \
             --target "$GITHUB_SHA" \
             --title "AUDIO-rec Android APK (build ${GITHUB_RUN_NUMBER})" \
-            --notes "Installable AUDIO-rec debug APK built from ${GITHUB_SHA}. Configure the AUDIOREC_API_URL Actions variable before building if the app should connect to a deployed HTTPS API."
+            --notes "Installable AUDIO-rec debug APK built from ${GITHUB_SHA}. Android workspaces and WAV recordings are stored on-device; no hosted API is required. External USB capture is device/WebView dependent and is not certified bit-perfect."

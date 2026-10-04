@@ -39,3 +39,14 @@
 @media(max-width:390px){.topbar-actions{gap:5px}.install-app{gap:3px;padding:0 5px;font-size:8px}.topbar-left{gap:4px}.breadcrumb{gap:5px}.breadcrumb>span{max-width:75px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 @media(display-mode:standalone){.topbar{padding-top:env(safe-area-inset-top,0px)}.mobile-tabbar{padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}}
 @media(max-width:680px){.auth-mobile-brand{display:flex!important;align-items:center;justify-content:space-between;gap:10px}.auth-mobile-brand .install-app{flex:0 0 auto}}
+/* Native/offline diagnostics must stay visible without looking like a browser error page. */
+.usb-route-warning{margin-top:8px;padding:7px 8px;font-size:8px;line-height:1.45}
+.fatal-error{min-height:100vh;padding:24px;display:flex;flex-direction:column;background:#252621;color:#f3efe4}
+.fatal-error .brand{margin-bottom:auto}
+.fatal-error>div{width:min(100%,520px);margin:auto;display:grid;justify-items:start;gap:12px}
+.fatal-error>div>svg{color:#e9a05d}
+.fatal-error h1{margin:0;font-size:clamp(24px,5vw,38px);letter-spacing:-1px}
+.fatal-error p{margin:0;color:#c1bcae;line-height:1.6;font-size:14px}
+.fatal-error button{margin-top:8px;padding:12px 17px;border:0;border-radius:7px;background:#ff8c20;color:#201f1c;font-weight:700;cursor:pointer}
+.scan-usb-btn{align-self:flex-start;padding:4px 0;border:0;background:transparent;color:#a36e43;font:7px var(--mono);letter-spacing:.15px;text-align:left;cursor:pointer}
+.scan-usb-btn:hover{color:#714422;text-decoration:underline}
