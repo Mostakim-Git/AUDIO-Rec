@@ -25,11 +25,7 @@ public class ResamplerCheck {
     private static final int FRAMES = 40000;
 
     public static void main(String[] args) {
-        int bad = run();
-        System.out.println();
-        System.out.println("resampler checks: " + passed + " passed"
-                + (bad > 0 ? ", " + bad + " FAILED" : ""));
-        if (bad != 0) System.exit(1);
+        if (run() != 0) System.exit(1);
     }
 
     /** called from FormatSelfTest; returns the number of failures */

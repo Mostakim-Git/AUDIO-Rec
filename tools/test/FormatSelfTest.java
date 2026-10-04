@@ -305,6 +305,9 @@ public class FormatSelfTest {
         // the Ogg/Opus resampler: pure maths, no MediaCodec needed
         failures += ResamplerCheck.run();
 
+        // the rules that decide what may be shared through the content provider
+        failures += ShareCheck.run();
+
         // the reader side: files written by tools/test/gen_foreign.py, which no
         // AUDIO-rec writer ever touched
         File foreign = new File(dir, "foreign");

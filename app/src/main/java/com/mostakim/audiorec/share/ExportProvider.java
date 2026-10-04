@@ -9,6 +9,7 @@ import android.os.ParcelFileDescriptor;
 import android.provider.OpenableColumns;
 
 import com.mostakim.audiorec.App;
+import com.mostakim.audiorec.db.Store;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -18,8 +19,11 @@ import java.io.FileNotFoundException;
  * Drive, WhatsApp, Telegram, a NAS sync client.
  *
  * Deliberately locked down: only files that live inside AUDIO-rec's own
- * directories can be served, the provider is not exported, and read access is
- * granted per-URI, so the rest of the filesystem stays out of reach.
+ * directories - or that the database knows we recorded or exported - can be
+ * served, the provider is not exported, and read access is granted per-URI, so
+ * the rest of the filesystem stays out of reach.  The rules themselves live in
+ * ShareRules, which has no framework dependencies and is covered by
+ * tools/test/ShareCheck.java.
  */
 public class ExportProvider extends ContentProvider {
 
@@ -39,40 +43,45 @@ public class ExportProvider extends ContentProvider {
         String path = uri.getPath();
         if (path == null || path.isEmpty()) throw new FileNotFoundException("empty path");
         File f = new File(path);
-        if (!f.exists()) throw new FileNotFoundException(path);
+        if (!f.isFile()) throw new FileNotFoundException(path);
         if (!isAllowed(f)) throw new FileNotFoundException("outside the app sandbox");
         return f;
     }
 
     private boolean isAllowed(File f) {
-        String p;
-        try {
-            p = f.getCanonicalPath();
-        } catch (java.io.IOException e) {
-            return false;
+        String canonical = canonical(f);
+        if (canonical == null) return false;
+        boolean known = false;
+        App app = App.get();
+        if (app != null && app.db() != null) {
+            try {
+                // absolute as stored (a /storage/... path) and canonical (the same
+                // file below /mnt/media_rw/...): Android's storage paths are symlinks
+                known = new Store(app, app.db()).isKnownFile(f.getAbsolutePath(), canonical);
+            } catch (Exception ignored) {
+            }
         }
-        String[] roots = allowedRoots();
-        for (String r : roots) {
-            if (r != null && p.startsWith(r)) return true;
-        }
-        return false;
+        return ShareRules.allowedPath(canonical, allowedRoots(), known);
     }
 
     private String[] allowedRoots() {
         App app = App.get();
         if (app == null) return new String[0];
-        String[] roots = new String[4];
+        return ShareRules.roots(
+                canonical(app.getFilesDir()),
+                canonical(app.getExternalFilesDir(null)),
+                canonical(app.prefs().recordDir()),
+                canonical(new File(app.getCacheDir(), "share")));
+    }
+
+    /** each directory resolves on its own, so one broken path cannot hide the rest */
+    private static String canonical(File f) {
+        if (f == null) return null;
         try {
-            File ext = app.getExternalFilesDir(null);
-            File internal = app.getFilesDir();
-            File rec = app.prefs().recordDir();
-            roots[0] = ext == null ? null : ext.getCanonicalPath();
-            roots[1] = internal == null ? null : internal.getCanonicalPath();
-            roots[2] = rec == null ? null : rec.getCanonicalPath();
-            roots[3] = new File(app.getCacheDir(), "share").getCanonicalPath();
-        } catch (Exception ignored) {
+            return f.getCanonicalPath();
+        } catch (Exception e) {
+            return f.getAbsolutePath();
         }
-        return roots;
     }
 
     @Override
@@ -83,13 +92,7 @@ public class ExportProvider extends ContentProvider {
 
     @Override
     public String getType(Uri uri) {
-        String name = uri.getLastPathSegment();
-        String lower = name == null ? "" : name.toLowerCase();
-        if (lower.endsWith(".wav")) return "audio/wav";
-        if (lower.endsWith(".flac")) return "audio/flac";
-        if (lower.endsWith(".aiff") || lower.endsWith(".aif")) return "audio/x-aiff";
-        if (lower.endsWith(".ogg")) return "audio/ogg";
-        return "application/octet-stream";
+        return ShareRules.mimeFor(uri.getLastPathSegment());
     }
 
     @Override

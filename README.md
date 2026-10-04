@@ -205,8 +205,21 @@ bash tools/test/run.sh             # every check below; artifacts in build/fmt
   sizes and compares it with a single-pass reference at twelve rates, with a
   negative control that fails if the old per-block carry logic ever comes back
   (54 checks)
+* `tools/test/ShareCheck.java` covers the rules behind the content provider used
+  for Drive/WhatsApp: which folders may be served, what happens after the
+  recording folder moves (38 checks)
 * `tools/format_check.py` scores the artifacts byte by byte without using any of
   the app's code
+* `tools/static_check.py` looks for the mistakes that compile cleanly and then
+  break on the phone: format strings whose argument count does not match, and
+  intent extras read with a different key than they were written with
+* `tools/minsdk_check.py` compiles the sources against the **API 29** platform jar
+  (the declared minimum) and audits every newer symbol: constants must be proven
+  inlined into the dex, methods must sit behind an `SDK_INT` guard
+* `tools/apk_check.py` is the release gate on the signed APK: no network
+  permission and no `java.net`/URL in the dex (the offline promise), no MP3/MPEG
+  codec anywhere, every declared component present in the dex, the USB filters
+  and the adaptive branding in place, 4 KiB alignment and a v2/v3 signature block
 
 ## Hardware notes
 

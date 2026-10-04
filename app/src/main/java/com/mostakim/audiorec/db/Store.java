@@ -155,6 +155,25 @@ public class Store {
         return out;
     }
 
+    /**
+     * true when a take or an export points at this file.  Both the absolute path
+     * (what we stored) and the canonical one (what the filesystem reports) are
+     * matched, because Android hands out /storage/... paths that are symlinks to
+     * /mnt/media_rw/... - the same file under two names.
+     */
+    public boolean isKnownFile(String absolute, String canonical) {
+        Cursor c = r().rawQuery("SELECT 1 FROM " + Db.T_TRACKS
+                + " WHERE file_path=? OR file_path=?"
+                + " UNION ALL SELECT 1 FROM " + Db.T_EXPORTS
+                + " WHERE file_path=? OR file_path=? LIMIT 1",
+                new String[]{absolute, canonical, absolute, canonical});
+        try {
+            return c.moveToFirst();
+        } finally {
+            c.close();
+        }
+    }
+
     public Track track(long id) {
         Cursor c = r().query(Db.T_TRACKS, null, "_id=?", new String[]{String.valueOf(id)},
                 null, null, null);
