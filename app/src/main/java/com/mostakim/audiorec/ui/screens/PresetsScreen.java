@@ -122,6 +122,7 @@ public class PresetsScreen extends Screen {
                                     })),
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             card.addView(row);
+            col.addView(card);
         }
 
         col.addView(Ui.spacer(act, 8));

@@ -28,6 +28,7 @@ public abstract class Screen {
     private final ScrollView scroller;
     private final boolean scrollable;
     private final String title, subtitle;
+    private boolean built;
 
     protected Screen(MainActivity a, String title, String subtitle, boolean scrollable) {
         this.act = a;
@@ -51,12 +52,24 @@ public abstract class Screen {
             scroller = null;
             col.setPadding(Ui.dp(a, 16), Ui.dp(a, 12), Ui.dp(a, 16), Ui.dp(a, 16));
         }
-        build(col);
+        // build() is deliberately NOT called here.  A constructor must not run
+        // subclass code that reads subclass fields - they are still null at this
+        // point (PlaylistScreen's queue is the one that bit us) - so the page is
+        // built on first use instead.
     }
 
     protected abstract void build(LinearLayout col);
 
+    /** builds the page the first time something asks for it */
+    private void ensureBuilt() {
+        if (!built) {
+            built = true;
+            build(col);
+        }
+    }
+
     public View view() {
+        ensureBuilt();
         return scrollable ? scroller : col;
     }
 
@@ -70,6 +83,10 @@ public abstract class Screen {
 
     /** rebuild when data may have changed elsewhere */
     public void refresh() {
+        if (!built) {
+            ensureBuilt();
+            return;
+        }
         if (scroller != null) {
             int y = scroller.getScrollY();
             col.removeAllViews();
@@ -119,8 +136,21 @@ public abstract class Screen {
         return c;
     }
 
-    /** centred empty-state message with a call to action */
+    /**
+     * Centred empty-state message with a call to action.
+     *
+     * It adds the card to the page and returns it: a caller that builds the card
+     * and forgets to add it leaves a hole in the page instead of a message.
+     */
     protected LinearLayout empty(String message, String actionLabel, View.OnClickListener action) {
+        LinearLayout c = emptyCard(message, actionLabel, action);
+        col.addView(c);
+        return c;
+    }
+
+    /** the empty-state card without a parent - for a page that owns its list */
+    protected LinearLayout emptyCard(String message, String actionLabel,
+                                     View.OnClickListener action) {
         LinearLayout c = Ui.card(act);
         TextView t = Ui.dim(act, message);
         t.setGravity(Gravity.CENTER);

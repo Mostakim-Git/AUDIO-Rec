@@ -10,17 +10,23 @@ app for musicians, podcasters and audio engineers. Plug in a USB audio interface
 set the level, hit record. Nothing is uploaded, nothing needs an account, and the
 app has no network permission at all.
 
-*by Mostakim Billah · MIT licensed · v1.0.0 · Android 10 (API 29) and newer*
+*by Mostakim Billah · MIT licensed · v1.0.1 · Android 10 (API 29) and newer*
 
 ---
 
 ## Install
 
-Download **[AUDIO-rec.apk](https://github.com/Mostakim-Git/AUDIO-Rec/releases/download/v1.0.0/AUDIO-rec.apk)**
-from the [v1.0.0 release](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.0) —
-585,098 bytes (571 KiB), signed v1 + v2 + v3, SHA-256
-`ecd1933881acb8c6377a570cee7725609ea4e6cafb17fd2295ccbf7e0de276b0`. The same file is
+Download **[AUDIO-rec.apk](https://github.com/Mostakim-Git/AUDIO-Rec/releases/download/v1.0.1/AUDIO-rec.apk)**
+from the [v1.0.1 release](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.1) —
+585,083 bytes (571 KiB), signed v1 + v2 + v3, SHA-256
+`9778262907a8a9498b12337a354ac70d5fe0e7b95eedb03ab864ffc25659a605`. The same file is
 committed at [`release/AUDIO-rec.apk`](release/AUDIO-rec.apk).
+
+**1.0.1 fixes the blank window.** 1.0.0's shell never found its panes (it looked for them in
+an XML-inflation callback the code-built interface never triggers), so nothing was ever laid
+out, and four blocks of UI were built and then never attached to a parent. Details and the
+new verification layers are in
+[`release/RELEASE-NOTES-1.0.1.md`](release/RELEASE-NOTES-1.0.1.md).
 
 That size is the whole app, not a stub: there are no third-party libraries in it at all —
 no AndroidX, no Kotlin runtime, no support jars — so 340 app classes, all twelve screens,
@@ -220,8 +226,20 @@ bash tools/test/run.sh             # every check below; artifacts in build/fmt
 * `tools/format_check.py` scores the artifacts byte by byte without using any of
   the app's code
 * `tools/static_check.py` looks for the mistakes that compile cleanly and then
-  break on the phone: format strings whose argument count does not match, and
-  intent extras read with a different key than they were written with
+  break on the phone: format strings whose argument count does not match, intent
+  extras read with a different key than they were written with, and the
+  blank-interface shapes — a container that gets children but is never attached
+  to a parent, a child laid out with zero size and no weight, a page that fills
+  nothing in
+* `tools/test/static_check_test.py` re-introduces each of those view-tree defects
+  into a scratch copy of the sources and fails if the checker stops reporting it
+  (5/5 caught) — the rules are proved to be able to fail
+* `tools/test/ui/` is a headless UI harness: it compiles the real UI sources
+  against a small Android stand-in, constructs the real `MainActivity`, measures
+  and lays out the shell and all twelve pages at phone and tablet size, walks the
+  view tree and fires every click handler (95 checks). It is what caught the
+  blank window, and it prints the view and text counts of every page so a page
+  that renders nothing cannot pass
 * `tools/minsdk_check.py` compiles the sources against the **API 29** platform jar
   (the declared minimum) and audits every newer symbol: constants must be proven
   inlined into the dex, methods must sit behind an `SDK_INT` guard

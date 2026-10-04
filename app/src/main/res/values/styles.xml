@@ -17,6 +17,9 @@
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowAnimationStyle">@android:style/Animation.Activity</item>
         <item name="android:colorEdgeEffect">@color/accent</item>
+      <!-- every AlertDialog.Builder(this) call in the app picks this up, so the
+           dialogs match the console instead of falling back to the platform -->
+      <item name="android:alertDialogTheme">@style/AppTheme.Dialog</item>
     </style>
 
     <style name="AppTheme.Dialog" parent="@android:style/Theme.Material.Dialog.NoActionBar">

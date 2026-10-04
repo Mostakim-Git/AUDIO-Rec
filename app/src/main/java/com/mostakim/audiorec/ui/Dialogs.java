@@ -498,14 +498,4 @@ public final class Dialogs {
                 .setNegativeButton("Cancel", null)
                 .show();
     }
-
-    public static TextView headerRow(MainActivity a, String left, String right) {
-        LinearLayout r = Ui.row(a);
-        r.setGravity(Gravity.CENTER_VERTICAL);
-        TextView l = Ui.text(a, left, R.style.T_Section);
-        r.addView(l, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView rv = Ui.caption(a, right);
-        r.addView(rv);
-        return l;
-    }
 }

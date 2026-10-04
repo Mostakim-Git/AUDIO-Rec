@@ -1,3 +1,8 @@
+> **Superseded by [1.0.1](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.1).**
+> This build renders no interface: its drawer shell never found its panes and never laid the
+> window out. 1.0.1 fixes that, along with four blocks of UI that were built and then thrown
+> away. Download 1.0.1 instead.
+
 # AUDIO-rec 1.0.0
 
 **USB Audio Recording & Production Workstation** — an offline, installable Android app for

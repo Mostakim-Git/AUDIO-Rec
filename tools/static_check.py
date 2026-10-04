@@ -20,6 +20,12 @@ Three classes of bug, all of which compile cleanly and then fail on the phone:
    different number of placeholders, which either shows a literal ``%s`` or
    throws.
 
+4. the view tree - the interface is built in Java, so a container that is filled
+   in and then never handed to a parent draws nothing at all.  Four pages came
+   out blank or half-blank this way (one card, two list loops, one empty state).
+   Also caught here: a child laid out 0 pixels tall with no weight, which is
+   invisible, and a layout resource being inflated when ``res/layout`` is empty.
+
 Exit code is non-zero when anything is found, so it can gate a build.
 """
 import os
@@ -176,6 +182,116 @@ def check_extras(root):
     stats["extras read"] = len(reads)
 
 
+# ------------------------------------------------------------------ view tree
+# the shell, every page and every dialog is built in Java; nothing is inflated
+VIEW_TYPES = ("LinearLayout|FrameLayout|RelativeLayout|TableLayout|TableRow|"
+              "ScrollView|HorizontalScrollView|RadioGroup|View|ViewGroup")
+VIEW_DECL = re.compile(r"\b(?:" + VIEW_TYPES + r")\s+(\w+)\s*=\s*(?:Ui\.\w+|new\s+\w+)")
+LAYOUT_PARAMS = re.compile(r"new\s+(\w+)\.LayoutParams\s*\(")
+# calls that hand a view to something that will attach it
+# a page that reaches the window through one of the base-class helpers
+PAGE_HELPERS = ("col.addView(", "card(", "cardStyled(", "empty(", "emptyCard(",
+                "hairline(", "addContentView(")
+
+ATTACHING_CALL = re.compile(r"\b(?:set|add|attach|show)[A-Za-z_]*\s*\(([^()]*)\)")
+
+
+def enclosing_body(lines, index):
+    """the text of the innermost block around ``index`` (a method or a loop)"""
+    start = None
+    for k in range(index, -1, -1):
+        if re.match(r"^ {4,8}(?:@?[A-Za-z_][\w<>,.\[\]\s]*?)\s+\w+\s*\([^;]*\)\s*\{?\s*$",
+                    lines[k]) and lines[k].count("(") == lines[k].count(")"):
+            start = k
+            break
+    if start is None:
+        return "\n".join(lines)
+    depth = 0
+    for j in range(start, len(lines)):
+        depth += lines[j].count("{") - lines[j].count("}")
+        if depth == 0 and j > start:
+            return "\n".join(lines[start:j + 1])
+    return "\n".join(lines[start:])
+
+
+def call_arguments(text, open_paren):
+    """text between the parentheses that start at ``open_paren``"""
+    depth = 0
+    for i in range(open_paren, len(text)):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return text[open_paren + 1:i]
+    return text[open_paren + 1:]
+
+
+def top_level_args(text):
+    out, depth, cur = [], 0, []
+    for ch in text:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append("".join(cur).strip())
+            cur = []
+        else:
+            cur.append(ch)
+    out.append("".join(cur).strip())
+    return out
+
+
+def check_view_tree(root):
+    """views that are built, filled with children, and then dropped"""
+    sites = 0
+    for path in java_files(root):
+        text = open(path, encoding="utf-8", errors="replace").read()
+        lines = text.split("\n")
+        for i, line in enumerate(lines):
+            m = VIEW_DECL.search(line)
+            if not m:
+                continue
+            name = m.group(1)
+            body = enclosing_body(lines, i)
+            if not re.search(r"\b" + re.escape(name) + r"\.addView\(", body):
+                continue
+            sites += 1
+            attached = (
+                re.search(r"addView\(\s*" + re.escape(name) + r"\s*[,)]", body)
+                or re.search(r"\breturn\s+" + re.escape(name) + r"\s*;", body)
+                or re.search(r"=\s*" + re.escape(name) + r"\s*;", body.replace(line, "", 1))
+                or any(re.search(r"\b" + re.escape(name) + r"\b", args)
+                       for args in ATTACHING_CALL.findall(body))
+            )
+            if not attached:
+                problems.append("%s:%d  '%s' gets children but is never added to a "
+                                "parent, returned or stored - it draws nothing"
+                                % (path, i + 1, name))
+        for m in LAYOUT_PARAMS.finditer(text):
+            args = top_level_args(call_arguments(text, m.end() - 1))
+            line_no = text[:m.start()].count("\n") + 1
+            if len(args) == 2 and args[1] == "0":
+                problems.append("%s:%d  a child measured %s x 0 with no weight is "
+                                "invisible" % (path, line_no, args[0]))
+            elif len(args) == 3 and args[1] == "0" and args[2] in ("0", "0f", "0.0f"):
+                problems.append("%s:%d  a child measured %s x 0 with weight 0 is "
+                                "invisible" % (path, line_no, args[0]))
+        if path.endswith(("Dialogs.java", "MainActivity.java")):
+            if re.search(r"(?<!android\.)R\.layout\.", text):
+                problems.append("%s  inflates a layout resource while res/layout is empty"
+                                % path)
+    for path in java_files(root):
+        base = os.path.basename(path)
+        if not base.endswith("Screen.java") or base == "Screen.java":
+            continue
+        text = open(path, encoding="utf-8", errors="replace").read()
+        if not any(h in text for h in PAGE_HELPERS):
+            problems.append("%s  page never adds anything to itself" % path)
+    stats["view-tree sites"] = sites
+
+
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else "app/src/main/java"
     res = "app/src/main/res"
@@ -183,6 +299,7 @@ def main():
     print("AUDIO-rec :: static checks over %s" % root)
     check_formats(root, strings)
     check_extras(root)
+    check_view_tree(root)
     for k in sorted(stats):
         print("  %-24s %d" % (k, stats[k]))
     if problems:
@@ -193,7 +310,7 @@ def main():
         print("%d problem(s) found" % len(problems))
         return 1
     print()
-    print("no format-string or intent-extra problems")
+    print("no format-string, intent-extra or view-tree problems")
     return 0
 
 

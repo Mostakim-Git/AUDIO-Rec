@@ -118,6 +118,7 @@ public class ExportsScreen extends Screen {
             row.addView(Ui.button(act, "More", R.style.Btn_Small, v -> more(e, f)),
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             card.addView(row);
+            col.addView(card);
         }
 
         col.addView(Ui.spacer(act, 8));

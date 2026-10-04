@@ -154,7 +154,19 @@ def main():
         return m.group(1) if m else default
 
     check("package name", grab(r"package: name='([^']+)'") == PACKAGE, grab(r"package: name='([^']+)'"))
-    check("version name", grab(r"versionName='([^']+)'") == "1.0.0", grab(r"versionName='([^']+)'"))
+    # release/VERSION is the one place the version lives; the tag CI attaches the
+    # APK to and the release notes are named after it
+    version_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "release", "VERSION")
+    expected_version = "1.0.0"
+    if os.path.isfile(version_file):
+        with open(version_file) as fh:
+            expected_version = fh.read().strip()
+    check("version name", grab(r"versionName='([^']+)'") == expected_version,
+          grab(r"versionName='([^']+)'") + " (release/VERSION says " + expected_version + ")")
+    check("version code", grab(r"versionCode='(\d+)'") == str(
+        sum(int(x) * 100 ** (2 - i) for i, x in enumerate(expected_version.split(".")[:3]))),
+          grab(r"versionCode='(\d+)'"))
     check("label", grab(r"application-label:'([^']+)'") == EXPECTED_LABEL,
           grab(r"application-label:'([^']+)'"))
     check("minSdkVersion", grab(r"minSdkVersion:'(\d+)'") == str(MIN_SDK),

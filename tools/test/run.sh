@@ -11,9 +11,16 @@
 #   2. ReaderCheck      the "foreign file" corpus from gen_foreign.py - files no
 #                       AUDIO-rec writer ever touched
 #   3. format_check.py  an independent scorer that re-parses every artifact
-#   4. static_check.py  format strings and intent extras in the sources
-#   5. minsdk_check.py  every API-30+ symbol, compiled against the API 29 jar
-#   6. apk_check.py     the signed APK: offline, no MP3, components, branding
+#   4. static_check.py  format strings, intent extras and the view tree in the
+#                       sources - a view that is built and never attached draws
+#                       nothing, which is how the interface came out blank once
+#   5. static_check_test.py  re-introduces each of those view-tree defects and
+#                       proves the rules still catch them
+#   6. ui/run.sh        the headless UI harness: builds the real Activity and
+#                       every page, measures and lays them out, then reports the
+#                       view counts and text of each page
+#   7. minsdk_check.py  every API-30+ symbol, compiled against the API 29 jar
+#   8. apk_check.py     the signed APK: offline, no MP3, components, branding
 #
 # Usage:  bash tools/test/run.sh [output-dir]        (default build/fmt, ignored)
 set -euo pipefail
@@ -64,6 +71,14 @@ python3 tools/format_check.py "$OUT/artifacts"
 echo
 echo "==> static checks over the sources"
 python3 tools/static_check.py
+
+echo
+echo "==> view-tree rules catch the defects they exist for"
+python3 tools/test/static_check_test.py
+
+echo
+echo "==> headless UI harness (real Activity, every page, measured and laid out)"
+bash tools/test/ui/run.sh
 
 echo
 echo "==> minimum-SDK audit (API 30+ symbols against the API 29 platform)"

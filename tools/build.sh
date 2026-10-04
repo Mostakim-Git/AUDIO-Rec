@@ -20,8 +20,11 @@ JAVA="$TC/jre/bin/java"
 AAPT2="$TC/aapt2"
 
 APP_ID="com.mostakim.audiorec"
-VERSION_NAME="1.0.0"
-VERSION_CODE="1"
+# release/VERSION is the one place the version lives: the build, the tag the
+# CI workflow attaches the APK to and the release notes all read it from here.
+VERSION_NAME="$(cat "$ROOT/release/VERSION" 2>/dev/null | tr -d '[:space:]')"
+VERSION_NAME="${VERSION_NAME:-1.0.0}"
+VERSION_CODE="$(echo "$VERSION_NAME" | awk -F. '{printf "%d", $1*10000 + $2*100 + $3}')"
 MIN_SDK=29          # Android 10
 TARGET_SDK=34       # Android 14
 KS="$TC/audiorec-release.jks"
@@ -137,4 +140,6 @@ fi
 
 step "done"
 ls -la "$OUT"
+sha256sum "$OUT" | awk '{print $1}' > "$ROOT/release/AUDIO-rec.apk.sha256"
+echo "    SHA-256 $(cat "$ROOT/release/AUDIO-rec.apk.sha256")"
 "$AAPT2" dump badging "$OUT" | head -4

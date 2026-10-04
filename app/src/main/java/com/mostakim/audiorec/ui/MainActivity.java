@@ -240,10 +240,9 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
         content.addView(mHost, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        mShell.addView(mSidebar);
-        mShell.addView(content);
-        View scrim = new View(this);
-        mShell.addView(scrim);
+        // content first, rail second: the rail is the topmost child, so it draws
+        // over the drawer scrim and gets first refusal on touches
+        mShell.setChildren(content, mSidebar);
 
         setContentView(mShell);
 

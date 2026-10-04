@@ -382,6 +382,9 @@ public class StorageScreen extends Screen {
                             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             card.addView(row2);
         }
+
+        // the card lives inside mHealth so a repair pass can rebuild just this block
+        mHealth.addView(card);
     }
 
     // -------------------------------------------------------------- permissions

@@ -164,7 +164,13 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
             LinearLayout texts = Ui.column(act);
             texts.setPadding(Ui.dp(act, 12), 0, Ui.dp(act, 6), 0);
             LinearLayout titleRow = Ui.row(act);
-            titleRow.addView(Ui.body(act, t.title));
+            // the title yields: without the weight a long take name eats the row and
+            // squeezes the badges that follow it down to nothing
+            TextView title = Ui.body(act, t.title);
+            title.setSingleLine(true);
+            title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            titleRow.addView(title, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             if (t.starred) {
                 TextView star = Ui.caption(act, "  \u2605");
                 star.setTextColor(th.brand);

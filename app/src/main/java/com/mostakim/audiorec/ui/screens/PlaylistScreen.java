@@ -181,11 +181,11 @@ public class PlaylistScreen extends Screen implements AudioEngine.Listener {
         else Arrays.sort(arr, (a, b) -> Long.compare(b.length(), a.length()));
         mQueue.addAll(Arrays.asList(arr));
 
-        col.removeViewAt(col.getChildCount() - 1);           // the list we just cleared
         if (mQueue.isEmpty()) {
-            empty("Nothing playable here.\nSupported: " + Formats.playbackExtensions() + ".",
-                    null, null);
-            col.addView(mList);
+            // the state lives inside the list container, so the page structure is
+            // the same whether or not there is anything to play
+            mList.addView(emptyCard("Nothing playable here.\nSupported: "
+                    + Formats.playbackExtensions() + ".", null, null));
             return;
         }
 

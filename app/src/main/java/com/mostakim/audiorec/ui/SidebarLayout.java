@@ -20,20 +20,24 @@ import com.mostakim.audiorec.ui.kit.Theme;
  * content sits next to it.  On a portrait phone the same rail becomes a drawer:
  * it slides over the content, dims what is behind it, and can be dragged out
  * from the left edge or flicked away.
+ *
+ * The app builds this in code - it never inflates a layout - so the two panes are
+ * handed over through {@link #setChildren}.  Do not go back to discovering them in
+ * onFinishInflate(): that callback only fires for XML inflation, and relying on it
+ * is exactly what left the whole window blank once.
  */
 public class SidebarLayout extends ViewGroup {
 
     private static final int SIDEBAR_DP = 286;
-    private static final int SCRIM = 0xCC000000;
+    private static final int RAIL_BREAKPOINT_DP = 620;
 
     private final Paint mScrimPaint = new Paint();
     private final Theme mTheme;
 
-    private View mSidebar, mContent, mScrim;
+    private View mSidebar, mContent;
     private int mSidebarWidth;
     private boolean mDrawerMode;
     private float mSlide;                     // 0 = closed, 1 = open
-    private boolean mAnimating;
     private final int mTouchSlop;
     private final int mMinFling;
     private float mDownX, mDownY;
@@ -53,21 +57,37 @@ public class SidebarLayout extends ViewGroup {
         final ViewConfiguration vc = ViewConfiguration.get(c);
         mTouchSlop = vc.getScaledTouchSlop();
         mMinFling = vc.getScaledMinimumFlingVelocity();
+        // the window size is known before the first layout, so the shell opens in
+        // the right mode instead of flashing the wrong one
+        mDrawerMode = c.getResources().getConfiguration().screenWidthDp < RAIL_BREAKPOINT_DP;
+        mSlide = mDrawerMode ? 0f : 1f;
         setWillNotDraw(false);
     }
 
-    @Override
-    protected void onFinishInflate() {
-        super.onFinishInflate();
-        if (getChildCount() >= 2) {
-            mSidebar = getChildAt(0);
-            mContent = getChildAt(1);
+    /**
+     * Hands the two panes to the shell: the content first, the rail second, so the
+     * rail is the topmost child (drawn last, and offered touches first).
+     */
+    public void setChildren(View content, View rail) {
+        removeAllViews();
+        mContent = content;
+        mSidebar = rail;
+        if (content != null) {
+            addView(content, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         }
-        if (getChildCount() >= 3) mScrim = getChildAt(2);
+        if (rail != null) {
+            addView(rail, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT));
+        }
+        requestLayout();
+        invalidate();
     }
 
     public View content() {
         return mContent;
+    }
+
+    public View sidebar() {
+        return mSidebar;
     }
 
     public boolean isDrawerMode() {
@@ -76,6 +96,11 @@ public class SidebarLayout extends ViewGroup {
 
     public boolean isOpen() {
         return !mDrawerMode || mSlide > 0.6f;
+    }
+
+    /** true once both panes have been handed over by the activity */
+    public boolean isReady() {
+        return mSidebar != null && mContent != null;
     }
 
     /** called by the activity when the width class changes */
@@ -112,7 +137,6 @@ public class SidebarLayout extends ViewGroup {
         final float start = mSlide;
         final long startTime = System.currentTimeMillis();
         final long duration = (long) (180 * Math.abs(target - start)) + 60;
-        mAnimating = true;
         mAnimator = new Runnable() {
             @Override
             public void run() {
@@ -124,7 +148,6 @@ public class SidebarLayout extends ViewGroup {
                     postOnAnimation(this);
                 } else {
                     mSlide = target;
-                    mAnimating = false;
                     invalidate();
                 }
             }
@@ -137,8 +160,15 @@ public class SidebarLayout extends ViewGroup {
     protected void onMeasure(int widthSpec, int heightSpec) {
         int width = MeasureSpec.getSize(widthSpec);
         int height = MeasureSpec.getSize(heightSpec);
-        if (mSidebar == null) {
-            super.onMeasure(widthSpec, heightSpec);
+        if (mSidebar == null || mContent == null) {
+            // the activity has not handed the panes over yet (or handed over only
+            // one): measure whatever is there instead of silently measuring nothing
+            View only = mContent != null ? mContent : mSidebar;
+            if (only != null) {
+                only.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
+            }
+            setMeasuredDimension(width, height);
             return;
         }
         mSidebarWidth = Math.min(mSidebarWidth, (int) (width * 0.86f));
@@ -147,25 +177,21 @@ public class SidebarLayout extends ViewGroup {
         int contentWidth = mDrawerMode ? width : Math.max(0, width - mSidebarWidth);
         mContent.measure(MeasureSpec.makeMeasureSpec(contentWidth, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
-        if (mScrim != null) {
-            mScrim.measure(MeasureSpec.makeMeasureSpec(contentWidth, MeasureSpec.EXACTLY),
-                    MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
-        }
         setMeasuredDimension(width, height);
     }
 
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
-        if (mSidebar == null) return;
         int h = b - t;
-        int sidebarX = mDrawerMode
-                ? (int) (-mSidebarWidth + mSlide * mSidebarWidth)
-                : 0;
-        mSidebar.layout(sidebarX, 0, sidebarX + mSidebarWidth, h);
-        int contentX = mDrawerMode ? 0 : mSidebarWidth;
-        mContent.layout(contentX, 0, contentX + mContent.getMeasuredWidth(), h);
-        if (mScrim != null) {
-            mScrim.layout(contentX, 0, contentX + mScrim.getMeasuredWidth(), h);
+        if (mSidebar != null) {
+            int sidebarX = mDrawerMode
+                    ? (int) (-mSidebarWidth + mSlide * mSidebarWidth)
+                    : 0;
+            mSidebar.layout(sidebarX, 0, sidebarX + mSidebarWidth, h);
+        }
+        if (mContent != null) {
+            int contentX = mDrawerMode ? 0 : mSidebarWidth;
+            mContent.layout(contentX, 0, contentX + mContent.getMeasuredWidth(), h);
         }
     }
 
@@ -173,13 +199,13 @@ public class SidebarLayout extends ViewGroup {
     @Override
     protected void dispatchDraw(Canvas canvas) {
         if (mContent != null) drawChild(canvas, mContent, getDrawingTime());
-        if (mDrawerMode && mSlide > 0.001f) {
+        if (mDrawerMode && mSlide > 0.001f && mContent != null) {
             mScrimPaint.setColor(mTheme.scrim);
             mScrimPaint.setAlpha((int) (0xCC * Math.min(1f, mSlide)));
-            canvas.drawRect(0, 0, getWidth(), getHeight(), mScrimPaint);
+            canvas.drawRect(mContent.getLeft(), 0, getWidth(), getHeight(), mScrimPaint);
         }
         if (mSidebar != null) drawChild(canvas, mSidebar, getDrawingTime());
-        if (mDrawerMode && mSlide > 0.001f && mSlide < 0.999f) {
+        if (mDrawerMode && mSlide > 0.001f && mSlide < 0.999f && mSidebar != null) {
             // edge shadow while the drawer is in motion
             mScrimPaint.setColor(Color.BLACK);
             mScrimPaint.setAlpha(80);
@@ -200,7 +226,7 @@ public class SidebarLayout extends ViewGroup {
                 obtainVelocity();
                 mVelocity.addMovement(e);
                 // a touch on the dimmed area closes the drawer
-                if (mSlide > 0.5f && e.getX() > mSidebar.getRight()) {
+                if (mSlide > 0.5f && mSidebar != null && e.getX() > mSidebar.getRight()) {
                     closeDrawer();
                     return true;
                 }
