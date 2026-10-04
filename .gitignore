@@ -1,0 +1,10 @@
+# build scratch
+build/
+release/*.apk.idsig
+
+# fetched toolchain (jre, aapt2, android.jar, d8, apksigner, keystores)
+tools/.toolchain/
+
+# editor / os noise
+*.swp
+.DS_Store

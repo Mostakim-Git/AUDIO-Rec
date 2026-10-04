@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="LevelMeterView">
+        <attr name="lmChannels" format="integer" />
+        <attr name="lmShowScale" format="boolean" />
+        <attr name="lmPeakHoldMs" format="integer" />
+        <attr name="lmHorizontal" format="boolean" />
+    </declare-styleable>
+    <declare-styleable name="WaveScopeView">
+        <attr name="wsGrid" format="boolean" />
+        <attr name="wsWindowMs" format="integer" />
+    </declare-styleable>
+    <declare-styleable name="FaderView">
+        <attr name="fvLabel" format="string" />
+        <attr name="fvMin" format="float" />
+        <attr name="fvMax" format="float" />
+        <attr name="fvValue" format="float" />
+    </declare-styleable>
+    <declare-styleable name="DiskBarView">
+        <attr name="dbLabel" format="string" />
+    </declare-styleable>
+    <declare-styleable name="SidebarLayout">
+        <attr name="sidebarWidth" format="dimension" />
+    </declare-styleable>
+</resources>

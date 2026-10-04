@@ -1,0 +1,163 @@
+package com.mostakim.audiorec.ui.screens;
+
+import android.graphics.Typeface;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+
+import com.mostakim.audiorec.R;
+import com.mostakim.audiorec.ui.MainActivity;
+import com.mostakim.audiorec.ui.kit.Theme;
+import com.mostakim.audiorec.ui.kit.Ui;
+
+/**
+ * One page of the workstation.
+ *
+ * Screens build themselves into a vertical column; the base class handles the
+ * chrome (page header, scrolling, padding, empty states, section helpers) so
+ * every page stays visually consistent.
+ */
+public abstract class Screen {
+
+    protected final MainActivity act;
+    protected final Theme th;
+    protected final LinearLayout col;
+    private final ScrollView scroller;
+    private final boolean scrollable;
+    private final String title, subtitle;
+
+    protected Screen(MainActivity a, String title, String subtitle, boolean scrollable) {
+        this.act = a;
+        this.th = a.theme();
+        this.title = title;
+        this.subtitle = subtitle;
+        this.scrollable = scrollable;
+        col = Ui.column(a);
+        if (scrollable) {
+            scroller = new ScrollView(a);
+            scroller.setFillViewport(true);
+            scroller.setClipToPadding(false);
+            scroller.setVerticalScrollBarEnabled(true);
+            scroller.setScrollbarFadingEnabled(false);
+            int pad = Ui.dp(a, 16);
+            scroller.setPadding(pad, Ui.dp(a, 12), pad, Ui.dp(a, 28));
+            scroller.addView(col, new ScrollView.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            scroller.setBackgroundColor(th.bgRoot);
+        } else {
+            scroller = null;
+            col.setPadding(Ui.dp(a, 16), Ui.dp(a, 12), Ui.dp(a, 16), Ui.dp(a, 16));
+        }
+        build(col);
+    }
+
+    protected abstract void build(LinearLayout col);
+
+    public View view() {
+        return scrollable ? scroller : col;
+    }
+
+    public String title() {
+        return title;
+    }
+
+    public String subtitle() {
+        return subtitle;
+    }
+
+    /** rebuild when data may have changed elsewhere */
+    public void refresh() {
+        if (scroller != null) {
+            int y = scroller.getScrollY();
+            col.removeAllViews();
+            build(col);
+            scroller.post(() -> scroller.scrollTo(0, Math.min(y, scroller.getChildAt(0).getHeight())));
+        } else {
+            col.removeAllViews();
+            build(col);
+        }
+    }
+
+    public void onResume() {
+    }
+
+    public void onPause() {
+    }
+
+    // --------------------------------------------------------------- helpers
+    protected void toast(String msg) {
+        act.toast(msg);
+    }
+
+    protected void navigate(int page) {
+        act.navigate(page);
+    }
+
+    protected TextView section(String text) {
+        return Ui.section(act, text);
+    }
+
+    protected LinearLayout card() {
+        LinearLayout c = Ui.card(act);
+        col.addView(c);
+        return c;
+    }
+
+    protected LinearLayout card(String heading, String trailing) {
+        LinearLayout c = Ui.card(act, heading, trailing);
+        col.addView(c);
+        return c;
+    }
+
+    protected LinearLayout cardStyled(int bgRes) {
+        LinearLayout c = Ui.card(act);
+        c.setBackgroundResource(bgRes);
+        col.addView(c);
+        return c;
+    }
+
+    /** centred empty-state message with a call to action */
+    protected LinearLayout empty(String message, String actionLabel, View.OnClickListener action) {
+        LinearLayout c = Ui.card(act);
+        TextView t = Ui.dim(act, message);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(0, Ui.dp(act, 18), 0, Ui.dp(act, 12));
+        c.addView(t);
+        if (actionLabel != null) {
+            LinearLayout row = Ui.row(act);
+            row.setGravity(Gravity.CENTER);
+            row.addView(Ui.button(act, actionLabel, R.style.Btn_Primary, action));
+            c.addView(row);
+        }
+        return c;
+    }
+
+    /** big number + caption, used across the dashboard */
+    protected LinearLayout stat(String value, String label, String hint, int valueColor) {
+        LinearLayout c = Ui.column(act);
+        TextView v = Ui.text(act, value, R.style.T_Display);
+        v.setTextColor(valueColor);
+        v.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        c.addView(v);
+        TextView l = Ui.caption(act, label);
+        l.setTextColor(act.getColor(com.mostakim.audiorec.R.color.text_secondary));
+        c.addView(l);
+        if (hint != null) {
+            TextView h = Ui.text(act, hint, R.style.T_Caption);
+            h.setTextColor(th.textTertiary);
+            c.addView(h);
+        }
+        return c;
+    }
+
+    protected void hairline() {
+        col.addView(Ui.divider(act));
+    }
+
+    protected View spacer(int dp) {
+        return Ui.spacer(act, dp);
+    }
+}

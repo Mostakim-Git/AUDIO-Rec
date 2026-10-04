@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- USB device filter: classic-compliant USB audio class + the interfaces
+     musicians actually plug into a phone (audio streaming / control). -->
+<resources>
+    <usb-device class="1" subclass="1" />   <!-- Audio / AudioStreaming   -->
+    <usb-device class="1" subclass="2" />   <!-- Audio / AudioControl     -->
+    <usb-device class="1" subclass="3" />   <!-- Audio / MIDIStreaming    -->
+</resources>

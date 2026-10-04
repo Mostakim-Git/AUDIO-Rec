@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="space_xs">4dp</dimen>
+    <dimen name="space_s">8dp</dimen>
+    <dimen name="space_m">12dp</dimen>
+    <dimen name="space_l">16dp</dimen>
+    <dimen name="space_xl">24dp</dimen>
+    <dimen name="space_xxl">32dp</dimen>
+
+    <dimen name="radius_s">6dp</dimen>
+    <dimen name="radius_m">10dp</dimen>
+    <dimen name="radius_l">14dp</dimen>
+    <dimen name="radius_pill">999dp</dimen>
+
+    <dimen name="stroke_w">1dp</dimen>
+    <dimen name="sidebar_w">286dp</dimen>
+    <dimen name="topbar_h">56dp</dimen>
+    <dimen name="row_h">56dp</dimen>
+    <dimen name="btn_h">44dp</dimen>
+    <dimen name="btn_h_sm">34dp</dimen>
+    <dimen name="icon_s">18dp</dimen>
+    <dimen name="icon_m">22dp</dimen>
+    <dimen name="icon_l">28dp</dimen>
+
+    <dimen name="text_display">30sp</dimen>
+    <dimen name="text_title">20sp</dimen>
+    <dimen name="text_head">16sp</dimen>
+    <dimen name="text_body">14sp</dimen>
+    <dimen name="text_small">12sp</dimen>
+    <dimen name="text_tiny">10sp</dimen>
+    <dimen name="text_mono_l">22sp</dimen>
+
+    <dimen name="meter_h">180dp</dimen>
+    <dimen name="meter_w">26dp</dimen>
+</resources>
