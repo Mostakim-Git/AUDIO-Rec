@@ -56,7 +56,13 @@ jobs:
           test -f "release/RELEASE-NOTES-$version.md"
 
       - name: Re-inspect the package
-        run: python3 tools/apk_check.py release/AUDIO-rec.apk
+        run: |
+          set -euo pipefail
+          # apk_check.py reads the binary manifest with aapt2, which lives in the
+          # gitignored toolchain locally, so fetch a prebuilt one for the runner
+          npm install --no-save --silent aaptjs3
+          AAPT2=node_modules/aaptjs3/bin/x64/linux/aapt2 \
+            python3 tools/apk_check.py release/AUDIO-rec.apk
 
       - name: Create the release if it does not exist yet
         env:

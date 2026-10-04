@@ -25,12 +25,17 @@ import hashlib
 import os
 import re
 import struct
+import shutil
 import subprocess
 import sys
 import zipfile
 
 TOOLCHAIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".toolchain")
-AAPT2 = os.path.join(TOOLCHAIN, "aapt2")
+# aapt2 lives in the (gitignored) toolchain locally; on a CI runner it is passed
+# in through the environment, or found on PATH
+AAPT2 = os.environ.get("AAPT2") or os.path.join(TOOLCHAIN, "aapt2")
+if not os.path.isfile(AAPT2):
+    AAPT2 = shutil.which("aapt2") or AAPT2
 
 PACKAGE = "com.mostakim.audiorec"
 EXPECTED_LABEL = "AUDIO-rec"
