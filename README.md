@@ -1,5 +1,10 @@
 # AUDIO-rec
 
+<p align="center">
+  <img src="assets/branding/audiorec-mark-user.png" width="200"
+       alt="AUDIO-rec — the REC/Hi-Res phone logo by Mostakim Billah">
+</p>
+
 **USB Audio Recording & Production Workstation** — an offline, installable Android
 app for musicians, podcasters and audio engineers. Plug in a USB audio interface,
 set the level, hit record. Nothing is uploaded, nothing needs an account, and the
@@ -113,8 +118,39 @@ app/src/main/java/com/mostakim/audiorec/
     widgets/               meters, scope, faders, knobs, spectrum, disk bar
   util/                    preferences, formatting, seeding
 app/src/main/res/          palette, styles, 49 vector icons, launcher art
-assets/branding/           the SVG mark, lockup and logo
+assets/branding/           the official logo, lockup, icon preview
 tools/                     build scripts, icon generator, FLAC verifier
+```
+
+## Branding
+
+The launcher icon and every branded surface come from the author's own artwork,
+`assets/branding/audiorec-logo-user.svg` (the REC / Hi-Res phone with the USB
+plug and the waveform), which is kept verbatim as the source of truth.
+
+| asset | what it is |
+|-------|------------|
+| `audiorec-logo-user.svg` | the supplied artwork, untouched |
+| `audiorec-logo-user-flat.svg` | the same drawing with its CSS baked in as attributes, so plain rasterisers can read it |
+| `audiorec-lockup-user.svg` | logo + wordmark, for docs and store listings |
+| `audiorec-lockup-user.png` | the same lockup as a raster, so it renders even where no fonts are installed |
+| `audiorec-mark-user.png` | transparent raster, used in this README |
+| `audiorec-brand-preview.png` | the icon under square, circle and squircle masks |
+
+The artwork is black line art with warm ink (red *REC*, amber *Hi-Res*), so it
+needs a light ground: the launcher plate is warm paper (`launcher_background`)
+while the app UI stays dark, and the About screen sets the logo on a paper plate
+of its own. The small in-app marks that the UI tints (sidebar, dashboard) stay
+monochrome vectors - a tinted illustration would be a silhouette.
+
+Icons are committed, so a normal build needs nothing extra. To regenerate them:
+
+```bash
+python3 -m pip install --break-system-packages resvg-py   # Rust resvg bindings
+python3 tools/svg_flatten.py assets/branding/audiorec-logo-user.svg \
+                             assets/branding/audiorec-logo-user-flat.svg
+python3 tools/gen_brand.py     # mipmaps, adaptive foreground, lockup, preview
+python3 tools/gen_logo.py      # in-app marks only (it no longer owns launcher art)
 ```
 
 ## Formats, verified

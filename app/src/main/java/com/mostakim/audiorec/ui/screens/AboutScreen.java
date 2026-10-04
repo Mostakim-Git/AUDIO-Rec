@@ -35,9 +35,15 @@ public class AboutScreen extends Screen {
         // ------------------------------------------------------------- header
         LinearLayout hero = cardStyled(R.drawable.bg_tile);
         LinearLayout row = Ui.row(act);
+        // The official logo (author's artwork) - full colour, on the paper plate
+        // it was drawn for, rather than the tintable one-colour UI mark.
         ImageView logo = new ImageView(act);
-        logo.setImageResource(R.drawable.ic_logo);
-        row.addView(logo, new LinearLayout.LayoutParams(Ui.dp(act, 64), Ui.dp(act, 64)));
+        logo.setImageResource(R.drawable.brand_logo);
+        logo.setBackgroundResource(R.drawable.bg_logo_plate);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        int pad = Ui.dp(act, 7);
+        logo.setPadding(pad, pad, pad, pad);
+        row.addView(logo, new LinearLayout.LayoutParams(Ui.dp(act, 96), Ui.dp(act, 96)));
         LinearLayout texts = Ui.column(act);
         texts.setPadding(Ui.dp(act, 14), 0, 0, 0);
         TextView title = Ui.title(act, "AUDIO-rec");

@@ -7,11 +7,13 @@ description so nothing can drift out of sync:
 
     assets/branding/audiorec-logo.svg      full badge (docs, README, store)
     assets/branding/audiorec-mark.svg      mark only, transparent
-    assets/branding/logo.txt               the same SVG in .txt form
-    res/drawable/ic_logo.xml               vector mark for the UI (24dp grid)
-    res/drawable/ic_logo_wordmark.xml      mark + "AUDIO-rec" lockup
-    res/drawable/ic_launcher_foreground.xml
-    res/mipmap-*/ic_launcher.png           legacy raster launcher icons
+    res/drawable/ic_logo.xml               the in-app mark: 24dp grid, tintable
+    res/drawable/ic_launcher_mono.xml      themed-icon (monochrome) layer
+
+The launcher icon, the docs lockup and every other place the *brand* shows up
+come from the author's own artwork now - see tools/gen_brand.py (source of
+truth: assets/branding/audiorec-logo-user.svg).  This generator only keeps the
+small in-app marks that have to be a single tintable path.
 
 usage: python3 tools/gen_logo.py
 """
@@ -153,35 +155,13 @@ def write(path, text):
 def main():
     print("AUDIO-rec :: brand assets")
     logo = mark_svg(512, bg=INK, ink=SLATE)
-    write(os.path.join(BRAND, "audiorec-logo.svg"), logo)
-    write(os.path.join(BRAND, "logo.txt"), logo)                      # SVG in txt form
+    write(os.path.join(BRAND, "audiorec-logo.svg"), logo)             # generated badge
     write(os.path.join(BRAND, "audiorec-mark.svg"), mark_svg(512))
     write(os.path.join(BRAND, "audiorec-lockup.svg"), wordmark_svg(1600))
     write(os.path.join(RES, "drawable", "ic_logo.xml"), vector_ui(28))
-    write(os.path.join(RES, "drawable", "ic_launcher_foreground.xml"),
-          vector_mark(108, viewport=108, pad=0.235))
     write(os.path.join(RES, "drawable", "ic_launcher_mono.xml"),
           vector_mark(108, viewport=108, pad=0.235, peak_color="#FFFFFFFF"))
-
-    # ---- legacy raster mipmaps (adaptive icons still cover API 26+, but old
-    #      launchers and some OEM galleries pick up the PNGs)
-    try:
-        from svgpreview import render
-    except Exception:
-        print("  (skipping PNG mipmaps: preview rasteriser unavailable)")
-        return
-    for dpi, px in (("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)):
-        d = os.path.join(RES, "mipmap-" + dpi)
-        os.makedirs(d, exist_ok=True)
-        tmp_svg = os.path.join("/tmp", "audiorec_icon_%s.svg" % dpi)
-        with open(tmp_svg, "w") as f:
-            f.write(mark_svg(px * 4, bg="#11161E"))
-        render(open(tmp_svg).read(), os.path.join(d, "ic_launcher.png"), px, (17, 22, 30, 255), ss=2)
-        # round variant: punch the badge to a circle
-        with open(tmp_svg, "w") as f:
-            f.write(mark_svg(px * 4, bg=None))
-        render(open(tmp_svg).read(), os.path.join(d, "ic_launcher_round.png"), px, (17, 22, 30, 255), ss=2)
-        print("  res/mipmap-%s/ic_launcher.png (+_round)" % dpi)
+    print("  (launcher art + docs lockup: python3 tools/gen_brand.py)")
 
 
 if __name__ == "__main__":

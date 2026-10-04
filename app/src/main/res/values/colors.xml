@@ -2,8 +2,9 @@
 <resources>
     <!-- ============ AUDIO-rec palette : "console at 3 a.m." ============ -->
     <color name="bg_root">#FF0A0D12</color>
-    <!-- adaptive-icon background: ink panel with the cyan mark on top -->
-    <color name="launcher_background">#FF11161E</color>
+    <!-- adaptive-icon ground: warm paper, the one backdrop the official logo's
+         black line art and amber ink actually read against (the UI stays dark) -->
+    <color name="launcher_background">#FFF7F5F1</color>
     <color name="bg_panel">#FF11161E</color>
     <color name="bg_card">#FF161D27</color>
     <color name="bg_card_hi">#FF1D2632</color>

@@ -8,3 +8,4 @@ tools/.toolchain/
 # editor / os noise
 *.swp
 .DS_Store
+__pycache__/
