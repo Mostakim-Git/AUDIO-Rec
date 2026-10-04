@@ -73,6 +73,14 @@ echo "==> static checks over the sources"
 python3 tools/static_check.py
 
 echo
+echo "==> portable zip inspection of the signed APK"
+if [ -f release/AUDIO-rec.apk ]; then
+    python3 tools/zip_check.py release/AUDIO-rec.apk | tail -n 3
+else
+    echo "    skipped: build the APK first"
+fi
+
+echo
 echo "==> view-tree rules catch the defects they exist for"
 python3 tools/test/static_check_test.py
 
