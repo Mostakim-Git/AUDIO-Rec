@@ -430,11 +430,25 @@ public final class AudioEngine {
         int frameBytes = channels * bytesPerSample(mInputEncoding);
         int wantFrames = Math.max(mPrefs.bufferFrames(), minBuf / Math.max(1, frameBytes));
         int bufBytes = Math.max(minBuf, wantFrames * frameBytes);
+        boolean stereoOnly = false;
 
         try {
             mRecord = buildAudioRecord(rate, channels, mask, mInputEncoding, bufBytes);
+            if (mRecord == null && channels > 2) {
+                // the platform USB route exposes a stereo stream for most
+                // interfaces; retry as stereo rather than refusing to record
+                stereoOnly = true;
+                channels = 2;
+                mask = channelMask(channels);
+                minBuf = AudioRecord.getMinBufferSize(rate, mask, mInputEncoding);
+                if (minBuf <= 0) minBuf = rate / 10 * channels * 2;
+                frameBytes = channels * bytesPerSample(mInputEncoding);
+                wantFrames = Math.max(mPrefs.bufferFrames(), minBuf / Math.max(1, frameBytes));
+                bufBytes = Math.max(minBuf, wantFrames * frameBytes);
+                mRecord = buildAudioRecord(rate, channels, mask, mInputEncoding, bufBytes);
+            }
             if (mRecord == null) {
-                // fall back to 16-bit stereo, which every device supports
+                // fall back to 16-bit, which every device supports
                 mInputEncoding = AudioFormat.ENCODING_PCM_16BIT;
                 mRecord = buildAudioRecord(rate, channels, mask, mInputEncoding, bufBytes);
             }
@@ -454,6 +468,11 @@ public final class AudioEngine {
             return false;
         }
 
+        if (stereoOnly) {
+            mPrefs.setChannels(2);
+            postError("The interface accepted a stereo capture stream only - channels set to 2. "
+                    + "Use direct USB claim, or a UAC2 multichannel mode, for more inputs.");
+        }
         mActiveChannels = channels;
         mBlockFrames = Math.min(16384, Math.max(256, wantFrames));
         mBlock = new float[mBlockFrames * channels];
@@ -479,7 +498,7 @@ public final class AudioEngine {
         rec = null;
         for (int src : sources) {
             try {
-                rec = newInstance(src, rate, mask, encoding, bufBytes);
+                rec = newInstance(src, rate, channels, mask, encoding, bufBytes);
                 if (rec != null && rec.getState() == AudioRecord.STATE_INITIALIZED) break;
                 if (rec != null) {
                     rec.release();
@@ -506,9 +525,28 @@ public final class AudioEngine {
         return rec;
     }
 
-    private AudioRecord newInstance(int source, int rate, int mask, int encoding, int bufBytes) {
+    private AudioRecord newInstance(int source, int rate, int channels, int mask, int encoding,
+                                    int bufBytes) {
         int minBuf = AudioRecord.getMinBufferSize(rate, mask, encoding);
         int size = Math.max(bufBytes, minBuf > 0 ? minBuf : bufBytes);
+        // multichannel capture needs an index mask; the positional masks only
+        // describe mono and stereo
+        if (channels > 2 && Build.VERSION.SDK_INT >= 31) {
+            try {
+                AudioFormat indexFmt = new AudioFormat.Builder()
+                        .setEncoding(encoding)
+                        .setSampleRate(rate)
+                        .setChannelIndexMask((1 << channels) - 1)
+                        .build();
+                return new AudioRecord.Builder()
+                        .setAudioSource(source)
+                        .setAudioFormat(indexFmt)
+                        .setBufferSizeInBytes(size)
+                        .build();
+            } catch (Exception ignored) {
+                // fall through to the positional mask
+            }
+        }
         AudioFormat fmt = new AudioFormat.Builder()
                 .setEncoding(encoding)
                 .setSampleRate(rate)
