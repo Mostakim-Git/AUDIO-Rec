@@ -1,7 +1,8 @@
-> **Superseded by [1.0.2](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.2).**
+> **Superseded by [1.0.3](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.3).**
 > This build still force-stops when a recording starts: its capture loop divides a device read
 > (a byte count) by the channel count, so the block it just read is indexed past its end and the
-> capture thread dies. 1.0.2 fixes that. Download 1.0.2 instead.
+> capture thread dies. [1.0.2](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.2)
+> fixes that. Download 1.0.3 instead.
 
 # AUDIO-rec 1.0.1
 

@@ -103,6 +103,8 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
 
         card.addView(Ui.spacer(act, 8));
         mTakeActions = Ui.row(act);
+        // filled in when a take has just been saved; until then it is not there at all
+        mTakeActions.setVisibility(View.GONE);
         card.addView(mTakeActions);
     }
 
@@ -587,6 +589,7 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         box.addView(actions);
         mTakeActions.addView(box);
+        mTakeActions.setVisibility(View.VISIBLE);
     }
 
     private static String stripExt(String n) {

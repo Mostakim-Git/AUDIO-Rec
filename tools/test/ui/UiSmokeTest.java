@@ -42,6 +42,12 @@ public class UiSmokeTest {
         if (!ok) failures.add(what);
     }
 
+    /** same, with something measured to explain a failure */
+    private static void check(String what, boolean ok, String detail) {
+        checks++;
+        if (!ok) failures.add(what + " - " + detail);
+    }
+
     public static void main(String[] args) throws Exception {
         treeMode = args.length > 0 && args[0].equals("--tree");
         App app = new App();
@@ -237,6 +243,22 @@ public class UiSmokeTest {
                     treeHasText(pr, visible[i][1]));
         }
 
+        // the storage gauge paints its figures on a canvas, so it has no text for
+        // the tree walk to find: it still needs a real box, and its figures still
+        // have to be readable (accessibility, tests, screen readers)
+        act.navigate(MainActivity.PAGE_STORAGE);
+        layout(root, 1080, 2340);
+        View gauge = findViewByName(pageRoot(act), "DiskBarView");
+        check("feature: the disk gauge has a box to paint in",
+                gauge != null && gauge.getWidth() > 0 && gauge.getHeight() > 0,
+                gauge == null ? "not on the page"
+                        : gauge.getWidth() + "x" + gauge.getHeight());
+        check("feature: the disk gauge reports free and total space",
+                gauge != null && gauge.getContentDescription() != null
+                        && gauge.getContentDescription().toString().contains("free"),
+                gauge == null || gauge.getContentDescription() == null ? "none"
+                        : gauge.getContentDescription().toString());
+
         // the choosers, opened the way the operator opens them
         checkChooser(act, root, MainActivity.PAGE_RECORDER, "Buffer", "the buffer-size chooser",
                 new String[]{"1024 frames", "16384 frames"}, null);
@@ -357,6 +379,7 @@ public class UiSmokeTest {
         collect(root, all);
         List<View> out = new ArrayList<>();
         for (View v : all) {
+            if (v.getVisibility() != View.VISIBLE) continue;
             if (!(v instanceof ViewGroup) || v instanceof ScrollView) continue;
             if (((ViewGroup) v).getChildCount() != 0) continue;
             // an empty container that cannot be seen (no background, no height) is a
@@ -466,6 +489,17 @@ public class UiSmokeTest {
             check("feature: " + what + " never offers " + mustNotOffer,
                     !items.contains(mustNotOffer));
         }
+    }
+
+    /** the first view whose class is named this, whatever package it is in */
+    private static View findViewByName(View root, String simpleName) {
+        if (root == null) return null;
+        List<View> all = new ArrayList<>();
+        collect(root, all);
+        for (View v : all) {
+            if (v.getClass().getSimpleName().equals(simpleName)) return v;
+        }
+        return null;
     }
 
     /** a clickable whose text contains the given string */

@@ -1,9 +1,9 @@
-> **Superseded by [1.0.2](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.2).**
+> **Superseded by [1.0.3](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.3).**
 > This build renders no interface at all: its drawer shell never found its panes and never laid
 > the window out. [1.0.1](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.1) fixed
-> that, but still force-stops when a recording starts;
-> [1.0.2](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.2) fixes that too.
-> Download 1.0.2 instead.
+> that, [1.0.2](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.2) fixed the
+> force-stop when a recording starts, and [1.0.3](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.3)
+> lays out the storage gauge. Download 1.0.3 instead.
 
 # AUDIO-rec 1.0.0
 

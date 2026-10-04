@@ -10,24 +10,27 @@ app for musicians, podcasters and audio engineers. Plug in a USB audio interface
 set the level, hit record. Nothing is uploaded, nothing needs an account, and the
 app has no network permission at all.
 
-*by Mostakim Billah · MIT licensed · v1.0.2 · Android 10 (API 29) and newer*
+*by Mostakim Billah · MIT licensed · v1.0.3 · Android 10 (API 29) and newer*
 
 ---
 
 ## Install
 
-Download **[AUDIO-rec.apk](https://github.com/Mostakim-Git/AUDIO-Rec/releases/download/v1.0.2/AUDIO-rec.apk)**
-from the [v1.0.2 release](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.2) —
+Download **[AUDIO-rec.apk](https://github.com/Mostakim-Git/AUDIO-Rec/releases/download/v1.0.3/AUDIO-rec.apk)**
+from the [v1.0.3 release](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.3) —
 589,179 bytes (575 KiB), signed v1 + v2 + v3, SHA-256
-`f938e9a9f28e690fa19acebbfb10010df8069cca48c08422c2f2e65724444426`. The same file is
+`7b300c82c81a41883c0ebecb82a93fbf1a4624452955944829537203e44cf3f7`. The same file is
 committed at [`release/AUDIO-rec.apk`](release/AUDIO-rec.apk).
 
-**1.0.2 fixes the force-stop when recording starts.** The capture loop divided a device read -
-which counts bytes - by the channel count, so the block it had just read was indexed past its
-end and the capture thread died, taking the process with it. Frame arithmetic now goes through
-one tested place, listeners and both audio threads are wrapped so nothing they do can kill the
-app, and MP3 can no longer be imported or decoded. Details, plus the item-by-item feature
-audit, are in [`release/RELEASE-NOTES-1.0.2.md`](release/RELEASE-NOTES-1.0.2.md).
+**1.0.2 and 1.0.3 fix the force-stop when recording starts.** The capture loop divided a device
+read - which counts bytes - by the channel count, so the block it had just read was indexed
+past its end and the capture thread died, taking the process with it. Frame arithmetic now goes
+through one tested place, listeners and both audio threads are wrapped so nothing they do can
+kill the app, and MP3 can no longer be imported or decoded. 1.0.3 also lays out the storage
+gauge, which had measured to nothing inside its ScrollView. Details, plus the item-by-item
+feature audit, are in
+[`release/RELEASE-NOTES-1.0.3.md`](release/RELEASE-NOTES-1.0.3.md) and
+[`release/RELEASE-NOTES-1.0.2.md`](release/RELEASE-NOTES-1.0.2.md).
 
 That size is the whole app, not a stub: there are no third-party libraries in it at all —
 no AndroidX, no Kotlin runtime, no support jars — so 340 app classes, all twelve screens,
@@ -240,7 +243,7 @@ bash tools/test/run.sh             # every check below; artifacts in build/fmt
   against a small Android stand-in, constructs the real `MainActivity`, measures
   and lays out the shell and all twelve pages at phone and tablet size, walks the
   view tree, fires every click handler, opens every chooser and checks the
-  feature list item by item (148 checks). It is what caught the blank window, and
+  feature list item by item (150 checks). It is what caught the blank window, and
   it prints the view and text counts of every page so a page that renders
   nothing cannot pass
 * `tools/zip_check.py` inspects the signed APK with nothing but the standard

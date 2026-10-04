@@ -5,6 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.view.View;
+import android.view.View.MeasureSpec;
 
 import com.mostakim.audiorec.ui.kit.Theme;
 import com.mostakim.audiorec.util.Fmt;
@@ -30,6 +31,9 @@ public class DiskBarView extends View {
         mTotal = Math.max(1, total);
         mLeft = left;
         mRight = right;
+        // the figures are painted on the canvas, so they have to be readable to
+        // accessibility and to the tests as well
+        setContentDescription(left + " of " + right);
         invalidate();
     }
 
@@ -38,12 +42,34 @@ public class DiskBarView extends View {
         invalidate();
     }
 
+    /**
+     * A view with no measurement takes whatever the parent happens to offer; the
+     * screens sit in a ScrollView, which offers wrap-content children nothing, so
+     * this gauge used to lay out 0 x 0 with its bar and its figures outside the
+     * box. It now asks for the height its drawing needs.
+     */
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int wantedW = mTheme == null ? 240 : mTheme.dp(240);
+        int wantedH = mTheme == null ? 40 : mTheme.dp(40);
+        int wMode = MeasureSpec.getMode(widthMeasureSpec);
+        int hMode = MeasureSpec.getMode(heightMeasureSpec);
+        int width = wMode == MeasureSpec.UNSPECIFIED
+                ? wantedW : MeasureSpec.getSize(widthMeasureSpec);
+        int height = hMode == MeasureSpec.EXACTLY
+                ? MeasureSpec.getSize(heightMeasureSpec)
+                : (hMode == MeasureSpec.AT_MOST
+                        ? Math.min(wantedH, MeasureSpec.getSize(heightMeasureSpec))
+                        : wantedH);
+        setMeasuredDimension(width, Math.max(1, height));
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         if (mTheme == null) return;
         int w = getWidth(), h = getHeight();
         float barH = mTheme.dp(10);
-        float top = h - barH - mTheme.dp(20);
+        float top = h - barH - mTheme.dp(6);
 
         float frac = Math.max(0f, Math.min(1f, mUsed / (float) mTotal));
         int color = mAccent != 0 ? mAccent
