@@ -16,7 +16,16 @@ app has no network permission at all.
 
 ## Install
 
-The signed, ready-to-install APK is in [`release/AUDIO-rec.apk`](release/AUDIO-rec.apk).
+Download **[AUDIO-rec.apk](https://github.com/Mostakim-Git/AUDIO-Rec/releases/download/v1.0.0/AUDIO-rec.apk)**
+from the [v1.0.0 release](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.0) —
+585,098 bytes (571 KiB), signed v1 + v2 + v3, SHA-256
+`ecd1933881acb8c6377a570cee7725609ea4e6cafb17fd2295ccbf7e0de276b0`. The same file is
+committed at [`release/AUDIO-rec.apk`](release/AUDIO-rec.apk).
+
+That size is the whole app, not a stub: there are no third-party libraries in it at all —
+no AndroidX, no Kotlin runtime, no support jars — so 340 app classes, all twelve screens,
+every encoder and every icon fit in 571 KiB. An *empty* app from Android Studio already
+weighs about 3.5 MB before you write a line of code.
 
 1. Copy the APK to the phone/tablet.
 2. Open it and allow "install unknown apps" for the file manager or browser you

@@ -317,6 +317,7 @@ public class FormatSelfTest {
         if (new File(foreign, "expected.txt").isFile()) {
             int readerFailures = ReaderCheck.run(foreign);
             if (readerFailures != 0) failures += readerFailures;
+            ReaderCheck.printSummary();
             System.out.println(readerFailures == 0
                     ? "combined: in-process + resampler + foreign reader checks passed"
                     : "combined: " + readerFailures + " foreign reader check(s) FAILED");

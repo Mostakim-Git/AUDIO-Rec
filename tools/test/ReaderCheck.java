@@ -28,9 +28,14 @@ public class ReaderCheck {
         File d = new File(args.length > 0 ? args[0] : "/tmp/jfmt/foreign");
         int code = run(d);
         System.out.println();
+        printSummary();
+        if (code != 0) System.exit(code);
+    }
+
+    /** the one-line result of the last run(); shared with FormatSelfTest */
+    public static void printSummary() {
         System.out.println("foreign reader checks: " + passed + " passed"
                 + (failed > 0 ? ", " + failed + " FAILED" : ""));
-        if (code != 0) System.exit(code);
     }
 
     /** entry point for FormatSelfTest */
