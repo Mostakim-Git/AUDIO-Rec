@@ -33,7 +33,7 @@ CASES = [
      "'card' gets children but is never added"),
     ("Storage health card is built but never shown",
      "com/mostakim/audiorec/ui/screens/StorageScreen.java",
-     "        mHealth.addView(card);\n", "",
+     "        Ui.addWide(mHealth, card);\n", "",
      "'card' gets children but is never added"),
     ("a child laid out with no height and no weight",
      "com/mostakim/audiorec/ui/screens/StorageScreen.java",

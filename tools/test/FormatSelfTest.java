@@ -3,6 +3,7 @@ import com.mostakim.audiorec.audio.AudioSink;
 import com.mostakim.audiorec.audio.FlacWriter;
 import com.mostakim.audiorec.audio.OggWriter;
 import com.mostakim.audiorec.audio.Pcm;
+import com.mostakim.audiorec.ui.kit.SliderMath;
 import com.mostakim.audiorec.audio.RawPcmReader;
 import com.mostakim.audiorec.audio.WavWriter;
 
@@ -318,10 +319,85 @@ public class FormatSelfTest {
         check(Pcm.framesFromBytes(5, 2, 2) == 1, "a partial frame still yields whole frames");
     }
 
+    /**
+     * The gain and monitor faders.
+     *
+     * The operator asked for controls that move in steps of exactly 0.1 dB in
+     * both directions, so the step is checked in both directions, from a range of
+     * starting points, and around the values a mixing desk actually sits at.
+     */
+    static void testSliderMath() {
+        // a step is a step, whichever way it goes and wherever it starts
+        // every tenth of a decibel near unity, a coarser sweep across the rest
+        for (float start = -24f; start <= 24f; start += (start >= -1f && start <= 1f ? 0.1f : 0.7f)) {
+            float up = SliderMath.quantizeDb(SliderMath.quantizeDb(start) + 0.1f);
+            float down = SliderMath.quantizeDb(SliderMath.quantizeDb(start) - 0.1f);
+            check(Math.abs((up - SliderMath.quantizeDb(start)) - 0.1f) < 1e-5f,
+                    "a +0.1 step from " + start + " moves by a tenth");
+            check(Math.abs((SliderMath.quantizeDb(start) - down) - 0.1f) < 1e-5f,
+                    "a -0.1 step from " + start + " moves by a tenth");
+        }
+        // 0.1 is representable in the readout, not 0.09999999
+        check(SliderMath.quantizeDb(0.1f) == 0.1f, "0.1 dB survives quantisation");
+        check(SliderMath.quantizeDb(0.04f) == 0f, "0.04 dB snaps down to unity");
+        check(SliderMath.quantizeDb(0.06f) == 0.1f, "0.06 dB snaps up to +0.1");
+        check(SliderMath.quantizeDb(-0.06f) == -0.1f, "a nudge down snaps to -0.1");
+        check(Math.abs(SliderMath.quantizeDb(0.3f) - 0.3f) < 1e-6f,
+                "three steps land on exactly 0.3");
+        // a nudge down and back up returns to where it started
+        float v = 0f;
+        for (int i = 0; i < 7; i++) v = SliderMath.quantizeDb(v + 0.1f);
+        for (int i = 0; i < 7; i++) v = SliderMath.quantizeDb(v - 0.1f);
+        check(v == 0f, "seven steps up and seven back is exactly unity, got " + v);
+
+        // the range is honoured at both ends
+        check(SliderMath.clamp(99f, -24f, 24f) == 24f, "a fader cannot exceed its top");
+        check(SliderMath.clamp(-99f, -60f, 12f) == -60f, "a fader cannot go below its floor");
+        check(SliderMath.quantize(1000f, 0.1f) == 1000f, "quantise leaves an exact value alone");
+        check(SliderMath.quantize(0f, 0f) == 0f, "a zero step is not a division by zero");
+
+        // the position maths: top is the maximum, bottom is the minimum
+        check(SliderMath.valueAt(0f, 0f, 100f, -24f, 24f) == 24f, "the top of the fader is the top value");
+        check(SliderMath.valueAt(100f, 0f, 100f, -24f, 24f) == -24f, "the bottom of the fader is the floor");
+        check(Math.abs(SliderMath.valueAt(50f, 0f, 100f, -24f, 24f)) < 1e-5f, "the middle is unity");
+        check(SliderMath.valueAt(50f, 100f, 100f, -24f, 24f) == -24f,
+                "a fader with no room left reports the floor, not NaN");
+
+        // dragging: up is louder, down is quieter, and fine mode is one eighth
+        // a small movement, so neither drag reaches the clamp
+        float coarse = SliderMath.dragValue(0f, 100f, 98f, 0f, 100f, -60f, 12f, false);
+        float fine = SliderMath.dragValue(0f, 100f, 98f, 0f, 100f, -60f, 12f, true);
+        check(coarse > 0f, "dragging up raises the gain");
+        check(fine > 0f && Math.abs(fine - coarse * SliderMath.FINE_FACTOR) < 1e-4f,
+                "fine mode moves an eighth as far (" + fine + " vs " + coarse + ")");
+        // and a big drag stops at the top of the range instead of running away
+        check(SliderMath.dragValue(0f, 100f, 0f, 0f, 100f, -60f, 12f, false) == 12f,
+                "a drag past the top pins at +12 dB");
+        check(SliderMath.dragValue(0f, 0f, 100f, 0f, 100f, -60f, 12f, false) == -60f,
+                "a drag past the bottom pins at the floor");
+        check(SliderMath.dragValue(0f, 50f, 60f, 0f, 100f, -60f, 12f, false) < 0f,
+                "dragging down lowers the gain");
+        check(!SliderMath.isFine(0L, SliderMath.FINE_AFTER_MS - 1),
+                "a quick touch is a coarse drag");
+        check(SliderMath.isFine(0L, SliderMath.FINE_AFTER_MS),
+                "a held touch turns into a fine drag");
+
+        // the readout a mixing desk shows
+        check("+0.1 dB".equals(SliderMath.formatDb(0.1f, "dB")), "+0.1 dB reads with its sign");
+        check("0.0 dB".equals(SliderMath.formatDb(0f, "dB")), "unity reads without a sign");
+        check("-6.0 dB".equals(SliderMath.formatDb(-6f, "dB")), "-6 dB reads with one decimal");
+        System.out.println("slider checks: " + (checks - sliderMark) + " passed");
+    }
+
+    private static int sliderMark;
+
     public static void main(String[] args) throws Exception {
         File dir = new File(args.length > 0 ? args[0] : "/tmp/audiorec-fmt");
         dir.mkdirs();
         System.out.println("AUDIO-rec :: container self-test -> " + dir);
+
+        sliderMark = checks;
+        testSliderMath();
 
         int[][] wav = {{44100, 1, 16}, {48000, 2, 16}, {48000, 2, 24}, {96000, 2, 24},
                 {48000, 4, 24}, {48000, 8, 24}, {48000, 2, 32}, {384000, 2, 16}};

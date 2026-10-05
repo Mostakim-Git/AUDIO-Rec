@@ -136,6 +136,22 @@ if [ "$VERIFY" = "1" ]; then
   step "verify"
   "$JAVA" -jar "$TC/apksigner.jar" verify --min-sdk-version "$MIN_SDK" "$OUT" 2>/dev/null \
     && echo "    signature OK (v1+v2+v3)"
+
+  # Which key signed this?  Only the certificate in tools/keys may ever be used:
+  # a different one cannot be installed over an installed AUDIO-rec.
+  PIN="$ROOT/tools/keys/cert.sha256"
+  if [ -f "$PIN" ]; then
+    want=$(tr -d '[:space:]' < "$PIN" | tr 'A-Z' 'a-z')
+    got=$("$JAVA" -jar "$TC/apksigner.jar" verify --print-certs "$OUT" 2>/dev/null \
+          | awk '/certificate SHA-256 digest/ {print tolower($NF); exit}')
+    if [ "$got" != "$want" ]; then
+      echo "!! the APK is signed by the wrong certificate" >&2
+      echo "   expected $want (tools/keys/cert.sha256)" >&2
+      echo "   found    $got" >&2
+      exit 1
+    fi
+    echo "    signed by the repository certificate ($got)"
+  fi
 fi
 
 step "done"

@@ -83,6 +83,19 @@ def xmltree(apk):
     return out.stdout
 
 
+# The certificates this project has ever signed a release with.  A digest outside
+# this set is a different signing identity, and Android will not install it over
+# an installed AUDIO-rec.
+#
+#   1626ac37... signed 1.0.0 - 1.0.3; that key was lost when the toolchain was
+#               rebuilt, which is why 1.0.4 has to be uninstalled-and-reinstalled
+#    e1887c7f... signs 1.0.4 and everything after it; the key itself is in
+#               tools/keys/ and tools/keys/cert.sha256 is what build.sh checks
+SIGNING_CERTS = {
+    "1626ac37763fb48929e549ab0f2aad2bc361de2670cb06e708057c7f9d70283d",   # 1.0.0-1.0.3
+    "e1887c7fe5eb5c1a17dbe27b4ab23d18cbc7c4771aa6686ef89e3b511cc6087f",   # 1.0.4+
+}
+
 # ------------------------------------------------------------------- dex ----
 def dex_tables(apk):
     """(strings, types) from every classes*.dex in the package"""
@@ -118,6 +131,69 @@ def dex_tables(apk):
 
 def has_type(types, class_name):
     return ("L" + class_name.replace(".", "/") + ";") in types
+
+
+# ---------------------------------------------------- signing certificate ----
+# Android refuses to install a version whose signing certificate differs from the
+# installed one, so the certificate is pinned here: the digest in tools/keys is
+# the only one a released APK may carry.  apksigner would answer this question,
+# but it is not on every machine that runs this check (CI has no toolchain), and
+# the v2 block is a short, well-defined structure.
+V2_ID = 0x7109871A           # APK Signature Scheme v2
+MAGIC = b"APK Sig Block 42"
+
+
+def signing_cert_sha256(blob):
+    """SHA-256 of the first X.509 certificate in the v2 signer, or None"""
+    end = blob.rfind(MAGIC)
+    if end < 0 or end + len(MAGIC) != len(blob):
+        # the magic sits immediately before the central directory, so it is not
+        # necessarily at the end of the file: find the copy that is
+        end = -1
+        idx = blob.find(MAGIC)
+        while idx >= 0:
+            # the eight bytes after the magic are the start of the central directory
+            if blob[idx + 16:idx + 20] == b"PK\x01\x02":
+                end = idx
+                break
+            idx = blob.find(MAGIC, idx + 1)
+        if end < 0:
+            return None
+    import struct
+    size2 = struct.unpack_from("<Q", blob, end - 8)[0]
+    start = end + 16 - 8 - size2
+    size1 = struct.unpack_from("<Q", blob, start)[0]
+    if size1 != size2 or start < 0:
+        return None
+    pos, pairs_end = start + 8, end - 8
+    value = None
+    while pos + 12 <= pairs_end:
+        pair_len = struct.unpack_from("<Q", blob, pos)[0]
+        pair_id = struct.unpack_from("<I", blob, pos + 8)[0]
+        if pair_id == V2_ID:
+            value = blob[pos + 12:pos + 8 + pair_len]
+            break
+        pos += 8 + pair_len
+    if value is None:
+        return None
+
+    def take(buf, at):
+        """a uint32 length followed by that many bytes -> (data, next offset)"""
+        n = struct.unpack_from("<I", buf, at)[0]
+        return buf[at + 4:at + 4 + n], at + 4 + n
+
+    try:
+        signers, _ = take(value, 0)
+        signer, _ = take(signers, 0)
+        signed, _ = take(signer, 0)
+        _digests, at = take(signed, 0)
+        certs, _ = take(signed, at)
+        cert, _ = take(certs, 0)
+    except Exception:
+        return None
+    if not cert.startswith(b"0"):
+        return None
+    return hashlib.sha256(cert).hexdigest()
 
 
 # ------------------------------------------------------------------ apk -----
@@ -283,6 +359,11 @@ def main():
         check("resources.arsc stored uncompressed", info is not None and info.compress_type == 0, "")
     blob = open(apk, "rb").read()
     check("v2/v3 signature block present", b"APK Sig Block 42" in blob, "")
+    digest = signing_cert_sha256(blob)
+    check("the signing certificate is readable", digest is not None, str(digest))
+    if digest:
+        check("signed by a certificate this project owns", digest in SIGNING_CERTS,
+                "%s is not one of %s" % (digest, ", ".join(sorted(SIGNING_CERTS))))
     check("dex is compressed inside the package", b"dex\n035\x00" not in blob, "")
 
     print()

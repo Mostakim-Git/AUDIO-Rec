@@ -52,7 +52,8 @@ echo "==> ECJ compile (tests + the audio sources they exercise)"
     app/src/main/java/com/mostakim/audiorec/audio/FlacWriter.java \
     app/src/main/java/com/mostakim/audiorec/audio/OggWriter.java \
     app/src/main/java/com/mostakim/audiorec/audio/RawPcmReader.java \
-    app/src/main/java/com/mostakim/audiorec/audio/AudioSink.java
+    app/src/main/java/com/mostakim/audiorec/audio/AudioSink.java \
+    app/src/main/java/com/mostakim/audiorec/ui/kit/SliderMath.java
 
 rm -rf "$OUT/artifacts"
 mkdir -p "$OUT/artifacts"
@@ -87,6 +88,10 @@ if [ -f release/AUDIO-rec.apk ]; then
 else
     echo "    skipped: build the APK first"
 fi
+
+echo
+echo "==> the release gate rejects a package signed by another key"
+python3 tools/test/sign_check_test.py
 
 echo
 echo "==> view-tree rules catch the defects they exist for"

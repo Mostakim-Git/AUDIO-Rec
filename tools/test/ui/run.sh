@@ -42,20 +42,19 @@ if [ ! -d "$JDKBASE_UI/java/lang" ]; then
 fi
 
 # ------------------------------------------------------------------- resources
-# Only R.java is needed, so a previous build's generated R is reused when it is
-# still around; otherwise aapt2 makes a fresh one.
-if ls build/gen/com/mostakim/audiorec/R.java >/dev/null 2>&1; then
-    RGEN=build/gen
-else
-    echo "==> aapt2 (generating R.java)"
-    mkdir -p "$OUT/gen"
+# Only R.java is needed, and it is written to the same build/gen the package build
+# and the minimum-SDK audit use, so a fresh clone needs no full build before the
+# tests can run.
+RGEN=build/gen
+if [ ! -f "$RGEN/com/mostakim/audiorec/R.java" ]; then
+    echo "==> aapt2 (generating R.java into $RGEN)"
+    mkdir -p "$RGEN"
     "$AAPT2" compile --dir "$APP/res" -o "$OUT/res.zip"
     "$AAPT2" link -o "$OUT/base.apk" -I "$TC/android.jar" \
-        --manifest "$APP/AndroidManifest.xml" --java "$OUT/gen" \
+        --manifest "$APP/AndroidManifest.xml" --java "$RGEN" \
         --min-sdk-version 29 --target-sdk-version 34 \
         --version-code 1 --version-name 1.0.0 --no-version-vectors \
         "$OUT/res.zip" >/dev/null
-    RGEN="$OUT/gen"
 fi
 
 # --------------------------------------------------------------------- compile
@@ -70,6 +69,7 @@ echo "==> ECJ compile (harness stubs + fakes + the real ui sources)"
     echo app/src/main/java/com/mostakim/audiorec/util/Fmt.java
     echo app/src/main/java/com/mostakim/audiorec/util/Formats.java
     echo app/src/main/java/com/mostakim/audiorec/util/Ids.java
+    echo app/src/main/java/com/mostakim/audiorec/share/Downloads.java
     echo app/src/main/java/com/mostakim/audiorec/audio/Pcm.java
     echo app/src/main/java/com/mostakim/audiorec/audio/AudioDevice.java
     echo tools/test/ui/UiSmokeTest.java

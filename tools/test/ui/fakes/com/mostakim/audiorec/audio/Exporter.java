@@ -17,6 +17,9 @@ public final class Exporter {
         void onExportDone(Export e);
 
         void onExportFailed(String message);
+
+        default void onExportPublished(Export e, String visiblePath) {
+        }
     }
 
     public static File exportsDir(Context c) {
@@ -37,7 +40,15 @@ public final class Exporter {
         e.sampleRate = rate;
         e.channels = t.channels;
         e.status = "ready";
-        if (cb != null) cb.onExportDone(e);
+        if (cb != null) {
+            cb.onExportDone(e);
+            cb.onExportPublished(e, publishedPath(e.name));
+        }
+    }
+
+    /** the harness pretends the copy landed in Downloads, like the real one */
+    public static String publishedPath(String name) {
+        return "Download/AUDIO-rec/" + name;
     }
 
     public static String describe(Export e) {

@@ -102,7 +102,20 @@ public class Context {
 
     public boolean isDeviceProtectedStorage() { return false; }
 
-    public void startActivity(Intent intent) { }
+    /** every intent the app sent out, so the harness can inspect it */
+    public static final java.util.List<Intent> STARTED = new java.util.ArrayList<>();
+
+    public void startActivity(Intent intent) {
+        STARTED.add(intent);
+    }
+
+    public static Intent lastStarted() {
+        return STARTED.isEmpty() ? null : STARTED.get(STARTED.size() - 1);
+    }
+
+    public static void forgetStarted() {
+        STARTED.clear();
+    }
 
     public void startActivityForResult(Intent intent, int requestCode) { }
 

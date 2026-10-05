@@ -17,6 +17,7 @@ public class TextView extends View {
     private int mHintTextColor = 0xFF888888;
     private int mGravity = Gravity.START | Gravity.TOP;
     private boolean mSingleLine;
+    private int mMaxWidth = 0;
     private int mMaxLines = Integer.MAX_VALUE;
     private int mMinLines;
     private Typeface mTypeface;
@@ -63,10 +64,24 @@ public class TextView extends View {
         return s.length() * mTextSizePx * 0.52f;
     }
 
+    public void setMaxWidth(int px) {
+        mMaxWidth = px;
+        requestLayout();
+    }
+
+    public int getMaxWidth() {
+        return mMaxWidth;
+    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int availW = Math.max(0, MeasureSpec.getSize(widthMeasureSpec)
                 - getPaddingLeft() - getPaddingRight());
+        // the cap is on the whole view, padding included, exactly like the platform
+        if (mMaxWidth > 0) {
+            availW = Math.min(availW, Math.max(0,
+                    mMaxWidth - getPaddingLeft() - getPaddingRight()));
+        }
         CharSequence text = mText.length() > 0 ? mText : (mHint == null ? "" : mHint);
         float lineW = estimateWidth(text);
         int lines;

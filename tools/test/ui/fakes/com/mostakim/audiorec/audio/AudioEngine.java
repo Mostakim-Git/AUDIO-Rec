@@ -26,6 +26,8 @@ public class AudioEngine {
 
         default void onScope(float[] interleaved, int frames, int channels) { }
 
+        default void onPlaybackScope(float[] monoWindow, int frames) { }
+
         default void onPlaybackLevels(float[] rmsDb, float[] peakDb, int channels) { }
 
         default void onPlaybackPosition(long positionMs, long durationMs) { }
@@ -174,6 +176,25 @@ public class AudioEngine {
 
     public void resetChannelTrims() {
         for (int i = 0; i < mTrims.length; i++) mTrims[i] = 0f;
+    }
+
+    // ------------------------------------------------- driven by the UI harness
+    /** delivers an analyser feed exactly like the capture thread would */
+    public void feedScope(float[] interleaved, int frames, int channels) {
+        for (Listener l : new ArrayList<>(mListeners)) l.onScope(interleaved, frames, channels);
+    }
+
+    /** delivers a playback analyser window, like the playback thread would */
+    public void feedPlaybackScope(float[] monoWindow, int frames) {
+        for (Listener l : new ArrayList<>(mListeners)) l.onPlaybackScope(monoWindow, frames);
+    }
+
+    public void feedLevels(float[] rms, float[] peak, int channels) {
+        for (Listener l : new ArrayList<>(mListeners)) l.onLevels(rms, peak, channels);
+    }
+
+    public void feedRecordingTick(long frames, long bytes, long elapsedMs) {
+        for (Listener l : new ArrayList<>(mListeners)) l.onRecordingTick(frames, bytes, elapsedMs);
     }
 
     public void refreshDevices() {

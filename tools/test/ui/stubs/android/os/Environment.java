@@ -4,6 +4,9 @@ import java.io.File;
 
 public class Environment {
     public static final String MEDIA_MOUNTED = "mounted";
+    public static final String DIRECTORY_DOWNLOADS = "Download";
+    public static final String DIRECTORY_MUSIC = "Music";
+    public static final String DIRECTORY_DOCUMENTS = "Documents";
     public static final String MEDIA_REMOVED = "removed";
 
     public static String getExternalStorageState() { return MEDIA_MOUNTED; }

@@ -226,6 +226,28 @@ PAGE_HELPERS = ("col.addView(", "card(", "cardStyled(", "empty(", "emptyCard(",
 ATTACHING_CALL = re.compile(r"\b(?:set|add|attach|show)[A-Za-z_]*\s*\(([^()]*)\)")
 
 
+def attached_by_call(name, body):
+    """True when ``name`` is handed to something that looks like an attach call.
+
+    A helper that takes the parent first - ``Ui.addWide(parent, child)`` - only
+    attaches the second argument, so an ``addWide`` that names ``name`` as its
+    *parent* is not an attachment.  Getting this wrong made the rule blind to a
+    card that really was dropped: the checker saw ``Ui.addWide(card, row)`` and
+    believed the card had been added somewhere.
+    """
+    word = re.compile(r"\b" + re.escape(name) + r"\b")
+    for m in ATTACHING_CALL.finditer(body):
+        call = m.group(0)
+        args = m.group(1)
+        if re.match(r"[A-Za-z_]*addWide\s*\(", call):
+            parts = top_level_args(args)
+            if len(parts) >= 2 and word.search(parts[1]):
+                return True
+        elif word.search(args):
+            return True
+    return False
+
+
 def enclosing_body(lines, index):
     """the text of the innermost block around ``index`` (a method or a loop)"""
     start = None
@@ -292,8 +314,7 @@ def check_view_tree(root):
                 re.search(r"addView\(\s*" + re.escape(name) + r"\s*[,)]", body)
                 or re.search(r"\breturn\s+" + re.escape(name) + r"\s*;", body)
                 or re.search(r"=\s*" + re.escape(name) + r"\s*;", body.replace(line, "", 1))
-                or any(re.search(r"\b" + re.escape(name) + r"\b", args)
-                       for args in ATTACHING_CALL.findall(body))
+                or attached_by_call(name, body)
             )
             if not attached:
                 problems.append("%s:%d  '%s' gets children but is never added to a "
