@@ -165,7 +165,7 @@ public abstract class Screen {
         return c;
     }
 
-    /** big number + caption, used across the dashboard */
+    /** big number + caption, used across the pages */
     protected LinearLayout stat(String value, String label, String hint, int valueColor) {
         LinearLayout c = Ui.column(act);
         TextView v = Ui.text(act, value, R.style.T_Display);

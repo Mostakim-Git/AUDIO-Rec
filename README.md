@@ -16,25 +16,26 @@ app has no network permission at all.
 
 ## Install
 
-Download **[AUDIO-rec.apk](https://github.com/Mostakim-Git/AUDIO-Rec/releases/download/v1.0.3/AUDIO-rec.apk)**
-from the [v1.0.3 release](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.3) —
-589,179 bytes (575 KiB), signed v1 + v2 + v3, SHA-256
-`7b300c82c81a41883c0ebecb82a93fbf1a4624452955944829537203e44cf3f7`. The same file is
+Download **[AUDIO-rec.apk](https://github.com/Mostakim-Git/AUDIO-Rec/releases/download/v1.0.4/AUDIO-rec.apk)**
+from the [v1.0.4 release](https://github.com/Mostakim-Git/AUDIO-Rec/releases/tag/v1.0.4) —
+593,276 bytes (579 KiB), signed v1 + v2 + v3, SHA-256
+`3387cde60531e2b5e635c87b423ae8fd74b6ea24b501b2bdc9cb60945c55db15`. The same file is
 committed at [`release/AUDIO-rec.apk`](release/AUDIO-rec.apk).
 
-**1.0.2 and 1.0.3 fix the force-stop when recording starts.** The capture loop divided a device
-read - which counts bytes - by the channel count, so the block it had just read was indexed
-past its end and the capture thread died, taking the process with it. Frame arithmetic now goes
-through one tested place, listeners and both audio threads are wrapped so nothing they do can
-kill the app, and MP3 can no longer be imported or decoded. 1.0.3 also lays out the storage
-gauge, which had measured to nothing inside its ScrollView. Details, plus the item-by-item
-feature audit, are in
-[`release/RELEASE-NOTES-1.0.3.md`](release/RELEASE-NOTES-1.0.3.md) and
-[`release/RELEASE-NOTES-1.0.2.md`](release/RELEASE-NOTES-1.0.2.md).
+**1.0.4 is the update for everything 1.0.3 got wrong.** The dashboard and the sidebar are gone — the
+app opens on the recorder, with a bottom tab bar instead of a web-style shell, and every page is
+built from full-width blocks and weighted rows so it lays out the same in portrait and in landscape,
+on a 20:9 phone, a 16:9 tablet and everything between. Exports and shares now produce a real file:
+every finished take or export is published to `Download/AUDIO-rec` through MediaStore, and the share
+intent carries its URI in the `ClipData` so the read grant reaches the receiving app. The gain and
+monitor faders move in exact 0.1 dB steps, with −0.1 / +0.1 buttons and a fine-drag mode, and the
+spectrum analyser is live from the moment the app opens. The item-by-item audit is in
+[`release/RELEASE-NOTES-1.0.4.md`](release/RELEASE-NOTES-1.0.4.md); 1.0.2's force-stop fix and
+1.0.3's storage gauge fix are unchanged and still in.
 
 That size is the whole app, not a stub: there are no third-party libraries in it at all —
-no AndroidX, no Kotlin runtime, no support jars — so 340 app classes, all twelve screens,
-every encoder and every icon fit in 571 KiB. An *empty* app from Android Studio already
+no AndroidX, no Kotlin runtime, no support jars — so 364 app classes, all eleven screens,
+every encoder and every icon fit in 579 KiB. An *empty* app from Android Studio already
 weighs about 3.5 MB before you write a line of code.
 
 1. Copy the APK to the phone/tablet.
@@ -59,6 +60,10 @@ can actually run it.
 - WAV, FLAC, AIFF and OGG/Opus. **No MP3** — it is patent-encumbered; OGG/Opus is
   smaller at the same quality and free.
 - Live record and playback meters with peak hold; tap a meter to clear the peaks.
+- Real-time spectrum analyser (2048-point FFT, 40 Hz – 20 kHz) with falling peak caps, live during
+  capture and during playback.
+- Gain and monitor faders that move in exact 0.1 dB steps, with −0.1 / +0.1 buttons and a fine-drag
+  mode.
 - Monitor button for setting the level before you commit to a take.
 - Crash-safe: an unplugged interface mid-take stops the capture and keeps the file.
 
@@ -75,15 +80,16 @@ can actually run it.
   or a mounted SD card.
 
 **Workstations**
-- **Dashboard** — interface, format, free space, recent takes, 14-day activity.
-- **Recorder** — transport, meters, waveform/spectrum scope, capture format,
-  destination, preset picker, post-take actions.
+- **Recorder** (the launch page) — transport, INPUT/OUTPUT meters with peak hold, live waveform and
+  real-time spectrum analyser, capture format, destination, preset picker, post-take actions.
 - **Mixer** — per-channel digital trims (−24…+24 dB), master gain, mute, monitor
   level, and an honest note about which controls live on the interface itself.
+- **Library · Playlist** — every take with playback, rename, star, share, export and delete;
+  folder playlists with auto-advance.
 - **Devices** — USB descriptor facts per unit: class/subclass, interface and
   endpoint counts, asynchronous feedback detection, vendor control interfaces,
   permission state, and input/output endpoint selection.
-- **Sessions · Library · Playlist · Export Files · Device Presets** — full
+- **Sessions · Export Files · Device Presets** — full
   create/read/update/delete over each kind of record, stored in SQLite.
 - **Storage** — volumes, free space, library health (missing files, orphan files,
   empty files), folder picker, All-files-access status.
@@ -91,8 +97,8 @@ can actually run it.
   dither, keep-screen-on, split mono inputs, peak warning, reset.
 - **About** — version, author, device support list, descriptor report, licence.
 
-Sidebar navigation on tablets and a drawer on phones; dark console palette built
-around a cyan/orange meter pair.
+A five-tab bar along the bottom (Record · Mixer · Library · Playlist · More) reaches every page in
+one tap, on phones and tablets alike; dark console palette built around a cyan/orange meter pair.
 
 ## Build it yourself
 
@@ -159,7 +165,7 @@ plug and the waveform), which is kept verbatim as the source of truth.
 The artwork is black line art with warm ink (red *REC*, amber *Hi-Res*), so it
 needs a light ground: the launcher plate is warm paper (`launcher_background`)
 while the app UI stays dark, and the About screen sets the logo on a paper plate
-of its own. The small in-app marks that the UI tints (sidebar, dashboard) stay
+of its own. The small in-app marks that the UI tints (header, tab bar) stay
 monochrome vectors - a tinted illustration would be a silhouette.
 
 Icons are committed, so a normal build needs nothing extra. To regenerate them:
@@ -241,9 +247,11 @@ bash tools/test/run.sh             # every check below; artifacts in build/fmt
   (5/5 caught) — the rules are proved to be able to fail
 * `tools/test/ui/` is a headless UI harness: it compiles the real UI sources
   against a small Android stand-in, constructs the real `MainActivity`, measures
-  and lays out the shell and all twelve pages at phone and tablet size, walks the
-  view tree, fires every click handler, opens every chooser and checks the
-  feature list item by item (150 checks). It is what caught the blank window, and
+  and lays out the shell and all eleven pages at nine window shapes — portrait and
+  landscape, 20:9 phone to tablet — walks the view tree, fires every click
+  handler, opens every chooser and checks the feature list item by item, then
+  drives the real-time spectrum, the 0.1 dB faders and the export/share paths
+  (199 checks). It is what caught the blank window, and
   it prints the view and text counts of every page so a page that renders
   nothing cannot pass
 * `tools/zip_check.py` inspects the signed APK with nothing but the standard

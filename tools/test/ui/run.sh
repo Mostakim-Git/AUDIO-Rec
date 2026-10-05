@@ -3,7 +3,7 @@
 # AUDIO-rec :: headless UI construction test.
 #
 # Compiles the app's real ui/ sources against stand-in Android classes and
-# stand-in engines, then runs MainActivity.onCreate(), the sidebar and all twelve
+# stand-in engines, then runs MainActivity.onCreate(), the tab bar and all eleven
 # screens without a device, measures and lays the view tree out, and inspects it.
 #
 # This is the test that catches "the app opens onto a blank window": the first
