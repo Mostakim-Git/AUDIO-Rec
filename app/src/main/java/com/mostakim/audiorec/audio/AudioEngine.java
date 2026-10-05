@@ -60,6 +60,13 @@ public final class AudioEngine {
         default void onScope(float[] interleaved, int frames, int channels) {
         }
 
+        /**
+         * The analyser window for what is being played back, so the spectrum is
+         * live while auditioning a take and not only while capturing.
+         */
+        default void onPlaybackScope(float[] monoWindow, int frames) {
+        }
+
         default void onRecordingTick(long frames, long bytes, long elapsedMs) {
         }
 
@@ -118,8 +125,17 @@ public final class AudioEngine {
         mLevelPeak = new float[8];
         Arrays.fill(mLevelRms, Pcm.FLOOR_DB);
         Arrays.fill(mLevelPeak, Pcm.FLOOR_DB);
-        mPlayback = new PlaybackEngine(mContext, this::onPlaybackLevels, this::onPlaybackState,
-                this::onPlaybackPosition);
+        mPlayback = new PlaybackEngine(mContext, new PlaybackEngine.Levels() {
+            @Override
+            public void on(float[] rms, float[] peak, int channels) {
+                onPlaybackLevels(rms, peak, channels);
+            }
+
+            @Override
+            public void scope(float[] monoWindow, int frames) {
+                onPlaybackScope(monoWindow, frames);
+            }
+        }, this::onPlaybackState, this::onPlaybackPosition);
         refreshDevices();
     }
 
@@ -160,6 +176,10 @@ public final class AudioEngine {
 
     private void onPlaybackLevels(float[] rms, float[] peak, int ch) {
         dispatch(l -> l.onPlaybackLevels(rms, peak, ch));
+    }
+
+    private void onPlaybackScope(float[] mono, int frames) {
+        dispatch(l -> l.onPlaybackScope(mono, frames));
     }
 
     private void onPlaybackState(PlaybackEngine.State s, String title) {

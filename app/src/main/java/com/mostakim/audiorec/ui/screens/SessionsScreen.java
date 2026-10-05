@@ -31,7 +31,7 @@ public class SessionsScreen extends Screen {
         actions.addView(Ui.button(act, "+  New session", R.style.Btn_Primary,
                         v -> Dialogs.sessionEditor(act, act.store(), null, () -> {
                             refresh();
-                            act.refreshTopbar();
+                            act.refreshHeader();
                         })),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         actions.addView(Ui.spacer(act, 8));
@@ -62,7 +62,7 @@ public class SessionsScreen extends Screen {
             else if ("archived".equals(s.status)) {
                 head.addView(Ui.pill(act, "ARCHIVED", R.drawable.bg_badge, th.textTertiary));
             }
-            card.addView(head);
+            Ui.addWide(card, head);
 
             if (!s.artist.isEmpty() || !s.venue.isEmpty()) {
                 card.addView(Ui.caption(act, (s.artist.isEmpty() ? "" : s.artist)
@@ -93,7 +93,7 @@ public class SessionsScreen extends Screen {
             buttons.addView(Ui.button(act, "Delete", R.style.Btn_Small,
                             v -> confirmDelete(s)),
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            card.addView(buttons);
+            Ui.addWide(card, buttons);
         }
     }
 
@@ -110,7 +110,7 @@ public class SessionsScreen extends Screen {
                         App.get().prefs().setLastSessionId(-1);
                     }
                     refresh();
-                    act.refreshTopbar();
+                    act.refreshHeader();
                     toast("Session deleted");
                 });
     }

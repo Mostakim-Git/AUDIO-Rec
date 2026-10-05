@@ -69,20 +69,20 @@ public class StorageScreen extends Screen {
                 + Formats.displayName(p.container())));
         TextView path = Ui.caption(act, dir.getAbsolutePath());
         path.setTextColor(th.textTertiary);
-        card.addView(path);
+        Ui.addWide(card, path);
 
         long free = freeBytes(dir);
         long total = totalBytes(dir);
         mBar = new DiskBarView(act);
         mBar.setData(total - free, total, Fmt.size(free) + " free", Fmt.size(total));
-        card.addView(mBar);
+        Ui.addWide(card, mBar);
         card.addView(Ui.caption(act, DiskBarView.usageText(total - free, total)));
 
         long secs = Fmt.recordableSeconds(free, p.channels(), p.bitDepth(),
                 p.sampleRate(), p.container());
         TextView est = Ui.head(act, "about " + Fmt.duration((int) Math.min(secs, Integer.MAX_VALUE)));
         est.setTextColor(secs < 300 ? th.rec : th.accent);
-        card.addView(est);
+        Ui.addWide(card, est);
         card.addView(Ui.caption(act, "at the current format \u00b7 "
                 + Fmt.size(Fmt.bytesPerSecond(p.channels(), p.bitDepth(), p.sampleRate(),
                 p.container())) + " per second"));
@@ -97,7 +97,7 @@ public class StorageScreen extends Screen {
         row.addView(Ui.spacer(act, 8));
         row.addView(Ui.button(act, "Type a path\u2026", R.style.Btn, v -> askPath()),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        card.addView(row);
+        Ui.addWide(card, row);
     }
 
     private void askPath() {
@@ -121,7 +121,7 @@ public class StorageScreen extends Screen {
     private void volumesCard() {
         LinearLayout card = card("Available volumes", "tap one to record there");
         mVolumes = Ui.column(act);
-        card.addView(mVolumes);
+        Ui.addWide(card, mVolumes);
         fillVolumes();
         LinearLayout row = Ui.row(act);
         row.addView(Ui.button(act, "Re-scan volumes", R.style.Btn_Small, v -> fillVolumes()),
@@ -129,7 +129,7 @@ public class StorageScreen extends Screen {
         row.addView(Ui.spacer(act, 8));
         row.addView(Ui.button(act, "New folder\u2026", R.style.Btn_Small, v -> newFolder()),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        card.addView(row);
+        Ui.addWide(card, row);
     }
 
     private void fillVolumes() {
@@ -162,7 +162,7 @@ public class StorageScreen extends Screen {
                 toast("Recording folder: " + dir.getAbsolutePath());
                 refresh();
             });
-            mVolumes.addView(row);
+            Ui.addWide(mVolumes, row);
         }
     }
 
@@ -331,7 +331,7 @@ public class StorageScreen extends Screen {
                 added++;
             }
             toast(added + " added to the library");
-            act.refreshTopbar();
+            act.refreshHeader();
             healthCard();
         }), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.2f));
         row.addView(Ui.spacer(act, 6));
@@ -353,11 +353,11 @@ public class StorageScreen extends Screen {
                             }
                         }
                         toast(n + " row" + (n == 1 ? "" : "s") + " removed");
-                        act.refreshTopbar();
+                        act.refreshHeader();
                         healthCard();
                     });
         }), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.2f));
-        card.addView(row);
+        Ui.addWide(card, row);
 
         if (empty > 0) {
             LinearLayout row2 = Ui.row(act);
@@ -380,11 +380,11 @@ public class StorageScreen extends Screen {
                         healthCard();
                     }), new LinearLayout.LayoutParams(0,
                             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            card.addView(row2);
+            Ui.addWide(card, row2);
         }
 
         // the card lives inside mHealth so a repair pass can rebuild just this block
-        mHealth.addView(card);
+        Ui.addWide(mHealth, card);
     }
 
     // -------------------------------------------------------------- permissions
@@ -422,14 +422,14 @@ public class StorageScreen extends Screen {
                     }
                 }
             }), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            card.addView(row);
+            Ui.addWide(card, row);
         } else if (!allFiles) {
             LinearLayout row = Ui.row(act);
             row.addView(Ui.button(act, "Request storage permission", R.style.Btn_Primary, v ->
                             act.requestPermissions(new String[]{
                                     android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, 4712)),
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            card.addView(row);
+            Ui.addWide(card, row);
         }
     }
 

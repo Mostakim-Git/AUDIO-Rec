@@ -191,6 +191,43 @@ public final class Pcm {
 
     // -------------------------------------------------------------- meters --
     /** per-channel peak + rms (dBFS) for one capture block */
+    /** how many samples the analyser windows look at */
+    public static final int SCOPE_WINDOW = 2048;
+
+    /**
+     * Appends the first channel of an interleaved block to a fixed-size window,
+     * keeping the newest samples and the window contiguous.
+     *
+     * The spectrum and the scope work on one channel at a time and need a
+     * continuous run of samples - a ring buffer would put a step in the middle of
+     * the window, which the FFT would show as broadband noise.  Shifting the
+     * window keeps it contiguous without moving a sample twice.
+     *
+     * @return how many samples the window now holds (at most {@code window.length})
+     */
+    public static int appendScope(float[] window, int filled, float[] interleaved,
+                                  int frames, int channels) {
+        if (window == null || window.length == 0 || frames <= 0) return Math.max(0, filled);
+        int ch = Math.max(1, channels);
+        int len = window.length;
+        int n = Math.min(frames, len);
+        int from = frames - n;                       // keep the newest
+        if (filled > len - n) {                      // make room by shifting left
+            int drop = Math.min(filled, filled - (len - n));
+            if (drop > 0 && drop < filled) {
+                System.arraycopy(window, drop, window, 0, filled - drop);
+                filled -= drop;
+            } else if (drop >= filled) {
+                filled = 0;
+            }
+        }
+        int dst = Math.max(0, Math.min(filled, len - n));
+        for (int i = 0; i < n; i++) {
+            window[dst + i] = interleaved[(from + i) * ch];
+        }
+        return Math.min(len, dst + n);
+    }
+
     public static void analyse(float[] buf, int frames, int channels,
                               float[] peakDb, float[] rmsDb) {
         for (int c = 0; c < channels; c++) {

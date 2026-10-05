@@ -37,6 +37,10 @@ public class PlaybackEngine {
     public enum State {STOPPED, PLAYING, PAUSED}
 
     public interface Levels {
+        /** the analyser window for the spectrum, newest samples last */
+        default void scope(float[] monoWindow, int frames) {
+        }
+
         void on(float[] rmsDb, float[] peakDb, int channels);
     }
 
@@ -50,6 +54,9 @@ public class PlaybackEngine {
 
     private final Context mContext;
     private final Levels mLevels;
+    private final float[] mScopeWindow = new float[Pcm.SCOPE_WINDOW];
+    private int mScopeFilled;
+    private int mScopeSinceEmit;
     private final StateListener mStateListener;
     private final PositionListener mPositionListener;
 
@@ -233,6 +240,7 @@ public class PlaybackEngine {
                 mPositionMs = raw.sampleRate > 0 ? positionFrames * 1000L / raw.sampleRate : 0;
                 Pcm.analyse(stereo, n, outChannels, mPeak, mRms);
                 if (mLevels != null) mLevels.on(mRms, mPeak, outChannels);
+                tapScope(stereo, n, outChannels);
                 long now = System.currentTimeMillis();
                 if (mPositionListener != null && now - lastReport > 200) {
                     lastReport = now;
@@ -349,6 +357,7 @@ public class PlaybackEngine {
                         mPositionMs = info.presentationTimeUs / 1000;
                         Pcm.analyse(floats, framesOut, outChannels, mPeak, mRms);
                         if (mLevels != null) mLevels.on(mRms, mPeak, outChannels);
+                        tapScope(floats, framesOut, outChannels);
                         if (mPositionListener != null && mPositionMs % 500 < 40) {
                             mPositionListener.on(mPositionMs, mDurationMs);
                         }
@@ -385,6 +394,23 @@ public class PlaybackEngine {
             if (mLevels != null) mLevels.on(mRms, mPeak, 2);
             if (mRunning) setState(State.STOPPED);
         }
+    }
+
+    /**
+     * Feeds the spectrum: what is being played is what the analyser shows, so the
+     * display is live during playback and not only while the interface is armed.
+     * One window is published about every 1024 frames, which is what makes the
+     * bars move smoothly at 48 kHz and above.
+     */
+    private void tapScope(float[] buf, int frames, int channels) {
+        mScopeFilled = Pcm.appendScope(mScopeWindow, mScopeFilled, buf, frames, channels);
+        mScopeSinceEmit += frames;
+        if (mLevels == null || mScopeFilled < mScopeWindow.length || mScopeSinceEmit < 1024) {
+            return;
+        }
+        mScopeSinceEmit = 0;
+        // the listener may paint this later on the UI thread, so hand over a copy
+        mLevels.scope(java.util.Arrays.copyOf(mScopeWindow, mScopeFilled), mScopeFilled);
     }
 
     /**

@@ -70,7 +70,7 @@ public class PlaylistScreen extends Screen implements AudioEngine.Listener {
         LinearLayout card = cardStyled(R.drawable.bg_tile);
         mNow = Ui.body(act, "Nothing playing");
         mNow.setTextColor(th.textSecondary);
-        card.addView(mNow);
+        Ui.addWide(card, mNow);
 
         mScrub = new SeekBar(act);
         mScrub.setMax(1000);
@@ -90,7 +90,7 @@ public class PlaylistScreen extends Screen implements AudioEngine.Listener {
                 mScrubbing = false;
             }
         });
-        card.addView(mScrub);
+        Ui.addWide(card, mScrub);
 
         LinearLayout row = Ui.row(act);
         row.addView(Ui.button(act, "\u23ee", R.style.Btn_Icon, v -> step(-1)),
@@ -108,7 +108,7 @@ public class PlaylistScreen extends Screen implements AudioEngine.Listener {
         });
         row.addView(mAutoBtn, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1.6f));
-        card.addView(row);
+        Ui.addWide(card, row);
     }
 
     // ------------------------------------------------------------ folder card
@@ -116,7 +116,7 @@ public class PlaylistScreen extends Screen implements AudioEngine.Listener {
         LinearLayout card = card("Folder", null);
         mFolderLabel = Ui.caption(act, mFolder.getAbsolutePath());
         mFolderLabel.setTextColor(th.textTertiary);
-        card.addView(mFolderLabel);
+        Ui.addWide(card, mFolderLabel);
 
         LinearLayout row = Ui.row(act);
         row.addView(Ui.button(act, "Sort: " + sortName(), R.style.Btn_Small, v -> {
@@ -141,17 +141,17 @@ public class PlaylistScreen extends Screen implements AudioEngine.Listener {
                 rebuild();
             }
         }), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        card.addView(row);
+        Ui.addWide(card, row);
 
         mFilter = Ui.textInput(act, "Filter this folder\u2026", "");
-        card.addView(mFilter);
+        Ui.addWide(card, mFilter);
         LinearLayout row2 = Ui.row(act);
         row2.addView(Ui.button(act, "Apply filter", R.style.Btn_Small, v -> rebuild()),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         row2.addView(Ui.spacer(act, 6));
         row2.addView(Ui.button(act, "Add all to library", R.style.Btn_Small, v -> addAllToLibrary()),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.4f));
-        card.addView(row2);
+        Ui.addWide(card, row2);
     }
 
     private String sortName() {
@@ -207,10 +207,10 @@ public class PlaylistScreen extends Screen implements AudioEngine.Listener {
                     mFolder = f;
                     rebuild();
                 });
-                head.addView(dir);
+                Ui.addWide(head, dir);
             }
         }
-        mList.addView(head);
+        Ui.addWide(mList, head);
 
         for (int i = 0; i < mQueue.size(); i++) {
             final int index = i;
@@ -237,14 +237,14 @@ public class PlaylistScreen extends Screen implements AudioEngine.Listener {
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.bottomMargin = Ui.dp(act, 4);
             row.setLayoutParams(lp);
-            mList.addView(row);
+            Ui.addWide(mList, row);
         }
 
         LinearLayout tail = Ui.column(act);
         tail.addView(Ui.spacer(act, 6));
         tail.addView(Ui.caption(act, "Total " + Fmt.size(totalBytes()) + "  \u00b7  playback uses "
                 + "the first two outputs of the selected device."));
-        mList.addView(tail);
+        Ui.addWide(mList, tail);
     }
 
     private long totalBytes() {
@@ -346,7 +346,7 @@ public class PlaylistScreen extends Screen implements AudioEngine.Listener {
             added++;
         }
         toast(added == 0 ? "Already in the library" : added + " added to the library");
-        if (added > 0) act.refreshTopbar();
+        if (added > 0) act.refreshHeader();
     }
 
     // -------------------------------------------------------------- listeners

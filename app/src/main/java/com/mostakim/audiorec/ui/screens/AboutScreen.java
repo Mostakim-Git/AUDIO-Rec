@@ -47,16 +47,16 @@ public class AboutScreen extends Screen {
         LinearLayout texts = Ui.column(act);
         texts.setPadding(Ui.dp(act, 14), 0, 0, 0);
         TextView title = Ui.title(act, "AUDIO-rec");
-        texts.addView(title);
+        Ui.addWide(texts, title);
         texts.addView(Ui.caption(act, "USB Audio Recording & Production Workstation"));
         texts.addView(Ui.caption(act, "version " + versionName() + "  \u00b7  " + packageName()));
         row.addView(texts, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        hero.addView(row);
+        Ui.addWide(hero, row);
         hero.addView(Ui.spacer(act, 10));
         TextView author = Ui.body(act, "by Mostakim Billah");
         author.setTextColor(th.brand);
-        hero.addView(author);
+        Ui.addWide(hero, author);
         hero.addView(Ui.caption(act, "MIT licensed, 2026. Offline by design: no account, no "
                 + "telemetry, no network permission in the manifest."));
 
@@ -109,7 +109,7 @@ public class AboutScreen extends Screen {
         buttons.addView(Ui.button(act, "Full descriptor report", R.style.Btn,
                         v -> descriptorReport()),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.2f));
-        devices.addView(buttons);
+        Ui.addWide(devices, buttons);
 
         // --------------------------------------------------------------- limits
         LinearLayout limits = card("Honest limits", null);
@@ -147,7 +147,7 @@ public class AboutScreen extends Screen {
         legalRow.addView(Ui.button(act, "Copy build info", R.style.Btn_Small, v -> {
             copy(buildInfo(), "Build info copied");
         }), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        legal.addView(legalRow);
+        Ui.addWide(legal, legalRow);
 
         TextView sign = Ui.caption(act, "Built to record, not to sell you anything.  "
                 + "\u2014  Mostakim Billah");

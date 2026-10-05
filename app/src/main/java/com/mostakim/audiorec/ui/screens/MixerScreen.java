@@ -12,7 +12,7 @@ import com.mostakim.audiorec.audio.AudioEngine;
 import com.mostakim.audiorec.audio.UsbAudioProbe;
 import com.mostakim.audiorec.ui.MainActivity;
 import com.mostakim.audiorec.ui.kit.Ui;
-import com.mostakim.audiorec.ui.widgets.FaderView;
+import com.mostakim.audiorec.ui.widgets.FaderStrip;
 import com.mostakim.audiorec.ui.widgets.KnobView;
 import com.mostakim.audiorec.ui.widgets.LevelMeterView;
 import com.mostakim.audiorec.util.Fmt;
@@ -28,7 +28,7 @@ import com.mostakim.audiorec.util.Fmt;
 public class MixerScreen extends Screen implements AudioEngine.Listener {
 
     private LevelMeterView mMeters;
-    private FaderView mMaster;
+    private FaderStrip mMaster;
     private LinearLayout mStrips;
     private LinearLayout mUnitControls;
     private TextView mMuteBtn, mStateLine;
@@ -52,11 +52,11 @@ public class MixerScreen extends Screen implements AudioEngine.Listener {
         row.addView(Ui.title(act, in == null ? "No input" : in.name),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         if (in != null && in.isUsb) row.addView(Ui.pill(act, "USB", R.drawable.bg_pill, th.accent));
-        card.addView(row);
+        Ui.addWide(card, row);
         card.addView(Ui.caption(act, in == null ? "\u2014"
                 : in.usbSpec() + "  \u00b7  " + in.shortSpec()));
         mStateLine = Ui.caption(act, "");
-        card.addView(mStateLine);
+        Ui.addWide(card, mStateLine);
 
         mMeters = new LevelMeterView(act);
         mMeters.setChannelCount(App.get().prefs().channels());
@@ -66,7 +66,7 @@ public class MixerScreen extends Screen implements AudioEngine.Listener {
                 ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(act, 132));
         lp.topMargin = Ui.dp(act, 10);
         mMeters.setLayoutParams(lp);
-        card.addView(mMeters);
+        Ui.addWide(card, mMeters);
         card.addView(Ui.caption(act, "Tap the meter to clear peak holds."));
     }
 
@@ -74,7 +74,7 @@ public class MixerScreen extends Screen implements AudioEngine.Listener {
         col.addView(section("CHANNEL TRIM"));
         LinearLayout card = card();
         mStrips = Ui.column(act);
-        card.addView(mStrips);
+        Ui.addWide(card, mStrips);
         rebuildStrips();
     }
 
@@ -120,7 +120,7 @@ public class MixerScreen extends Screen implements AudioEngine.Listener {
             row.addView(sb, new LinearLayout.LayoutParams(0,
                     ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             row.setPadding(0, Ui.dp(act, 4), 0, Ui.dp(act, 4));
-            mStrips.addView(row);
+            Ui.addWide(mStrips, row);
         }
         mStrips.addView(Ui.button(act, "Reset trims", R.style.Btn_Small, v -> {
             act.engine().resetChannelTrims();
@@ -148,25 +148,17 @@ public class MixerScreen extends Screen implements AudioEngine.Listener {
         LinearLayout card = card();
         LinearLayout row = Ui.row(act);
 
-        mMaster = new FaderView(act);
-        mMaster.setLabel("INPUT GAIN");
-        mMaster.setValue(App.get().prefs().gainDb());
-        mMaster.setDefault(0f);
+        mMaster = FaderStrip.gain(act);
         mMaster.setOnValueChanged((db, done) -> {
             App.get().prefs().setGainDb(db);
             if (done) toast("Input gain " + Fmt.db(db));
         });
-        row.addView(mMaster, new LinearLayout.LayoutParams(0, Ui.dp(act, 172), 1f));
+        row.addView(mMaster, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        FaderView monitor = new FaderView(act);
-        monitor.setLabel("MONITOR");
-        monitor.setValue(App.get().prefs().monitorGainDb());
-        monitor.setDefault(-6f);
-        monitor.setOnValueChanged((db, done) -> {
-            App.get().prefs().setMonitorGainDb(db);
-            act.engine().setMonitorGainDb(db);
-        });
-        row.addView(monitor, new LinearLayout.LayoutParams(0, Ui.dp(act, 172), 1f));
+        FaderStrip monitor = FaderStrip.monitor(act);
+        row.addView(monitor, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         LinearLayout buttons = Ui.column(act);
         buttons.setPadding(Ui.dp(act, 8), Ui.dp(act, 30), 0, 0);
@@ -176,7 +168,7 @@ public class MixerScreen extends Screen implements AudioEngine.Listener {
             act.engine().setMute(muted);
             updateMute();
         });
-        buttons.addView(mMuteBtn);
+        Ui.addWide(buttons, mMuteBtn);
         buttons.addView(Ui.spacer(act, 8));
         buttons.addView(Ui.button(act, "Reset", R.style.Btn_Small, v -> {
             App.get().prefs().setGainDb(0f);
@@ -189,7 +181,7 @@ public class MixerScreen extends Screen implements AudioEngine.Listener {
         }));
         row.addView(buttons);
 
-        card.addView(row);
+        Ui.addWide(card, row);
         card.addView(Ui.caption(act, "Gain and trims are applied once, in 32-bit float, before "
                 + "the meters and the file - so the recording matches what you hear."));
         updateMute();
@@ -206,7 +198,7 @@ public class MixerScreen extends Screen implements AudioEngine.Listener {
         col.addView(section("INTERFACE"));
         LinearLayout card = card("Hardware", null);
         mUnitControls = Ui.column(act);
-        card.addView(mUnitControls);
+        Ui.addWide(card, mUnitControls);
         rebuildUnit();
     }
 
@@ -256,7 +248,7 @@ public class MixerScreen extends Screen implements AudioEngine.Listener {
         r.addView(v, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         r.setPadding(0, Ui.dp(act, 4), 0, Ui.dp(act, 4));
-        mUnitControls.addView(r);
+        Ui.addWide(mUnitControls, r);
     }
 
     // -------------------------------------------------------------- listeners
@@ -295,7 +287,7 @@ public class MixerScreen extends Screen implements AudioEngine.Listener {
     public void onDevicesChanged() {
         act.runOnUiThread(() -> {
             rebuildUnit();
-            act.refreshTopbar();
+            act.refreshHeader();
         });
     }
 }

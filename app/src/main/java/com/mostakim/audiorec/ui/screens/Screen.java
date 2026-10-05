@@ -119,20 +119,20 @@ public abstract class Screen {
 
     protected LinearLayout card() {
         LinearLayout c = Ui.card(act);
-        col.addView(c);
+        Ui.addWide(col, c);
         return c;
     }
 
     protected LinearLayout card(String heading, String trailing) {
         LinearLayout c = Ui.card(act, heading, trailing);
-        col.addView(c);
+        Ui.addWide(col, c);
         return c;
     }
 
     protected LinearLayout cardStyled(int bgRes) {
         LinearLayout c = Ui.card(act);
         c.setBackgroundResource(bgRes);
-        col.addView(c);
+        Ui.addWide(col, c);
         return c;
     }
 
@@ -144,7 +144,7 @@ public abstract class Screen {
      */
     protected LinearLayout empty(String message, String actionLabel, View.OnClickListener action) {
         LinearLayout c = emptyCard(message, actionLabel, action);
-        col.addView(c);
+        Ui.addWide(col, c);
         return c;
     }
 
@@ -155,12 +155,12 @@ public abstract class Screen {
         TextView t = Ui.dim(act, message);
         t.setGravity(Gravity.CENTER);
         t.setPadding(0, Ui.dp(act, 18), 0, Ui.dp(act, 12));
-        c.addView(t);
+        Ui.addWide(c, t);
         if (actionLabel != null) {
             LinearLayout row = Ui.row(act);
             row.setGravity(Gravity.CENTER);
             row.addView(Ui.button(act, actionLabel, R.style.Btn_Primary, action));
-            c.addView(row);
+            Ui.addWide(c, row);
         }
         return c;
     }
@@ -171,14 +171,14 @@ public abstract class Screen {
         TextView v = Ui.text(act, value, R.style.T_Display);
         v.setTextColor(valueColor);
         v.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
-        c.addView(v);
+        Ui.addWide(c, v);
         TextView l = Ui.caption(act, label);
         l.setTextColor(act.getColor(com.mostakim.audiorec.R.color.text_secondary));
-        c.addView(l);
+        Ui.addWide(c, l);
         if (hint != null) {
             TextView h = Ui.text(act, hint, R.style.T_Caption);
             h.setTextColor(th.textTertiary);
-            c.addView(h);
+            Ui.addWide(c, h);
         }
         return c;
     }

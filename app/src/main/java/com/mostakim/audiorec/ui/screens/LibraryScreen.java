@@ -72,10 +72,10 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
         mPlayMeters.setPeakHoldMs(1500);
         mPlayMeters.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(act, 74), Ui.dp(act, 30)));
         row.addView(mPlayMeters);
-        card.addView(row);
+        Ui.addWide(card, row);
 
         mPosition = Ui.caption(act, "00:00:00 / 00:00:00");
-        card.addView(mPosition);
+        Ui.addWide(card, mPosition);
 
         mScrub = new android.widget.SeekBar(act);
         mScrub.setMax(1000);
@@ -95,7 +95,7 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
                 mScrubbing = false;
             }
         });
-        card.addView(mScrub);
+        Ui.addWide(card, mScrub);
 
         LinearLayout controls = Ui.row(act);
         controls.addView(Ui.button(act, "\u25b6", R.style.Btn_Icon,
@@ -115,7 +115,7 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
         controls.addView(Ui.spacer(act, 6));
         controls.addView(Ui.button(act, "Play all", R.style.Btn_Small, v -> playAll()),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.4f));
-        card.addView(controls);
+        Ui.addWide(card, controls);
     }
 
     private Track mCurrent;
@@ -184,13 +184,13 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
                 gone.setLayoutParams(lp);
                 titleRow.addView(gone);
             }
-            texts.addView(titleRow);
+            Ui.addWide(texts, titleRow);
             texts.addView(Ui.caption(act, Fmt.clock(t.durationMs) + "  \u00b7  " + t.formatSummary()));
             TextView meta = Ui.caption(act, (t.deviceName.isEmpty() ? "unknown device" : t.deviceName)
                     + "  \u00b7  take #" + t.takeNo + "  \u00b7  " + Fmt.size(t.sizeBytes)
                     + "  \u00b7  peak " + Fmt.dbShort(t.peakDb) + " dB");
             meta.setTextColor(th.textTertiary);
-            texts.addView(meta);
+            Ui.addWide(texts, meta);
             row.addView(texts, new LinearLayout.LayoutParams(0,
                     ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -205,7 +205,7 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.bottomMargin = Ui.dp(act, 6);
             row.setLayoutParams(lp);
-            mList.addView(row);
+            Ui.addWide(mList, row);
         }
     }
 
@@ -218,6 +218,7 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
                 "Move to session\u2026",
                 "Export as\u2026",
                 "Share",
+                "Save to Downloads",
                 "Delete"
         };
         new android.app.AlertDialog.Builder(act)
@@ -248,9 +249,12 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
                             Dialogs.shareFile(act, f, Formats.mimeFor(t.container));
                             break;
                         case 7:
+                            Dialogs.saveToDownloads(act, f, Formats.mimeFor(t.container));
+                            break;
+                        case 8:
                             Dialogs.deleteTrack(act, act.store(), t, () -> {
                                 refresh();
-                                act.refreshTopbar();
+                                act.refreshHeader();
                             });
                             break;
                     }
@@ -266,12 +270,18 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
                     public void onExportDone(Export e) {
                         toast("Exported " + e.name + "  \u00b7  " + Fmt.size(e.sizeBytes));
                         refresh();
-                        act.refreshTopbar();
+                        act.refreshHeader();
                     }
 
                     @Override
                     public void onExportFailed(String message) {
                         Ui.longToast(act, "Export failed: " + message);
+                    }
+
+                    @Override
+                    public void onExportPublished(Export e, String visiblePath) {
+                        Ui.longToast(act, "Copy saved to " + visiblePath
+                                + "\nAny app can send it, or copy it off over USB.");
                     }
                 }));
     }
@@ -287,7 +297,7 @@ public class LibraryScreen extends Screen implements AudioEngine.Listener {
         row.addView(Ui.spacer(act, 8));
         row.addView(Ui.button(act, "Scan folder", R.style.Btn, v -> scanFolder()),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        c.addView(row);
+        Ui.addWide(c, row);
     }
 
     private void pickFile() {

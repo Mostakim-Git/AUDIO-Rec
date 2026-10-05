@@ -2,6 +2,7 @@ package com.mostakim.audiorec.ui;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
 import android.content.Intent;
 import android.net.Uri;
 import android.view.View;
@@ -20,6 +21,7 @@ import com.mostakim.audiorec.db.Models.Preset;
 import com.mostakim.audiorec.db.Models.Session;
 import com.mostakim.audiorec.db.Models.Track;
 import com.mostakim.audiorec.db.Store;
+import com.mostakim.audiorec.share.Downloads;
 import com.mostakim.audiorec.share.ExportProvider;
 import com.mostakim.audiorec.ui.kit.Theme;
 import com.mostakim.audiorec.ui.kit.Ui;
@@ -57,16 +59,16 @@ public final class Dialogs {
         EditText notes = Ui.area(a, "Notes, mic positions, anything you'll forget", s.notes);
 
         col.addView(Ui.caption(a, "NAME"));
-        col.addView(name);
+        Ui.addWide(col, name);
         col.addView(Ui.spacer(a, 10));
         col.addView(Ui.caption(a, "ARTIST"));
-        col.addView(artist);
+        Ui.addWide(col, artist);
         col.addView(Ui.spacer(a, 10));
         col.addView(Ui.caption(a, "VENUE"));
-        col.addView(venue);
+        Ui.addWide(col, venue);
         col.addView(Ui.spacer(a, 10));
         col.addView(Ui.caption(a, "NOTES"));
-        col.addView(notes);
+        Ui.addWide(col, notes);
         col.addView(Ui.spacer(a, 14));
 
         // default format carried by the session
@@ -180,7 +182,7 @@ public final class Dialogs {
         if (!f.exists()) {
             TextView warn = Ui.text(a, "The audio file is missing from disk.", R.style.T_Body);
             warn.setTextColor(th.rec);
-            col.addView(warn);
+            Ui.addWide(col, warn);
         }
 
         AlertDialog d = new AlertDialog.Builder(a)
@@ -291,13 +293,13 @@ public final class Dialogs {
         EditText device = Ui.textInput(a, "Device", p.deviceName);
         EditText notes = Ui.area(a, "Notes", p.notes);
         col.addView(Ui.caption(a, "NAME"));
-        col.addView(name);
+        Ui.addWide(col, name);
         col.addView(Ui.spacer(a, 10));
         col.addView(Ui.caption(a, "DEVICE"));
-        col.addView(device);
+        Ui.addWide(col, device);
         col.addView(Ui.spacer(a, 10));
         col.addView(Ui.caption(a, "NOTES"));
-        col.addView(notes);
+        Ui.addWide(col, notes);
         col.addView(Ui.spacer(a, 12));
 
         final int[] rate = {p.sampleRate};
@@ -376,17 +378,71 @@ public final class Dialogs {
             a.toast("File is missing");
             return;
         }
-        try {
-            Uri uri = ExportProvider.uriFor(f);
-            Intent i = new Intent(Intent.ACTION_SEND);
-            i.setType(mime == null ? "audio/*" : mime);
-            i.putExtra(Intent.EXTRA_STREAM, uri);
-            i.putExtra(Intent.EXTRA_SUBJECT, f.getName());
-            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            a.startActivity(Intent.createChooser(i, "Share " + f.getName()));
-        } catch (Exception e) {
-            a.toast("Nothing on this device can receive the file");
+        shareUri(a, ExportProvider.uriFor(f), f.getName(), mime, f.length());
+    }
+
+    /**
+     * Hands a URI to another app.
+     *
+     * The read grant travels in the intent's ClipData as well as in the flags -
+     * a chooser only forwards a per-URI permission to the target when the URI is
+     * in the clip, which is why a share can arrive as "no file" on some devices
+     * while the app itself plays the same file happily.
+     */
+    public static void shareUri(MainActivity a, Uri uri, String name, String mime, long bytes) {
+        if (uri == null) {
+            a.toast("Nothing to share yet");
+            return;
         }
+        try {
+            Intent i = new Intent(Intent.ACTION_SEND);
+            i.setType(mime == null || mime.isEmpty() ? "audio/*" : mime);
+            i.putExtra(Intent.EXTRA_STREAM, uri);
+            i.putExtra(Intent.EXTRA_SUBJECT, name);
+            i.putExtra(Intent.EXTRA_TITLE, name);
+            i.putExtra(Intent.EXTRA_TEXT, name
+                    + (bytes > 0 ? "  \u00b7  " + Fmt.size(bytes) : "")
+                    + "  \u00b7  recorded with AUDIO-rec");
+            i.setClipData(ClipData.newRawUri(name, uri));
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(i, "Share " + name);
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            a.startActivity(chooser);
+        } catch (Exception e) {
+            a.toast("Nothing on this device can receive the file - use Save to Downloads");
+        }
+    }
+
+    /**
+     * Puts a copy of a finished file in <Download>/AUDIO-rec, where file managers,
+     * a USB cable and every other app can see it, and then offers to share that
+     * copy instead of the app-private original.
+     */
+    public static void saveToDownloads(final MainActivity a, final File f, final String mime) {
+        if (f == null || !f.exists()) {
+            a.toast("File is missing");
+            return;
+        }
+        a.toast("Saving " + f.getName() + " to Downloads\u2026");
+        Downloads.save(a, f, mime, f.getName(), (uri, visible, error) -> {
+            if (uri == null) {
+                Ui.longToast(a, "Could not save to Downloads: " + error
+                        + "\nThe original is still at " + f.getAbsolutePath());
+                return;
+            }
+            shareSheet(a, uri, f.getName(), mime, f.length(), visible);
+        });
+    }
+
+    private static void shareSheet(final MainActivity a, final Uri uri, final String name,
+                                   final String mime, long bytes, String visible) {
+        new AlertDialog.Builder(a)
+                .setTitle("Saved to Downloads")
+                .setMessage(visible + "\n\n" + Fmt.size(bytes > 0 ? bytes : 0)
+                        + " \u00b7 now visible to every app on the phone, and via USB.")
+                .setPositiveButton("Share it", (d, w) -> shareUri(a, uri, name, mime, bytes))
+                .setNeutralButton("Done", null)
+                .show();
     }
 
     // ---------------------------------------------------------------- parts -
@@ -433,7 +489,7 @@ public final class Dialogs {
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         final TextView val = Ui.mono(a, value + " dB");
         row.addView(val);
-        col.addView(row);
+        Ui.addWide(col, row);
         android.widget.SeekBar sb = new android.widget.SeekBar(a);
         sb.setMax(max - min);
         sb.setProgress(value - min);
@@ -452,7 +508,7 @@ public final class Dialogs {
             public void onStopTrackingTouch(android.widget.SeekBar s) {
             }
         });
-        col.addView(sb);
+        Ui.addWide(col, sb);
         col.addView(Ui.spacer(a, 6));
     }
 
@@ -467,7 +523,7 @@ public final class Dialogs {
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         r.addView(v);
         r.setPadding(0, Ui.dp(a, 5), 0, Ui.dp(a, 5));
-        col.addView(r);
+        Ui.addWide(col, r);
     }
 
     private static String[] labelsRates(int[] rates) {

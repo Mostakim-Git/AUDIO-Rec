@@ -19,7 +19,7 @@ import com.mostakim.audiorec.db.Models.Track;
 import com.mostakim.audiorec.ui.Dialogs;
 import com.mostakim.audiorec.ui.MainActivity;
 import com.mostakim.audiorec.ui.kit.Ui;
-import com.mostakim.audiorec.ui.widgets.FaderView;
+import com.mostakim.audiorec.ui.widgets.FaderStrip;
 import com.mostakim.audiorec.ui.widgets.LevelMeterView;
 import com.mostakim.audiorec.ui.widgets.SpectrumView;
 import com.mostakim.audiorec.ui.widgets.WaveScopeView;
@@ -39,11 +39,11 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
     private LevelMeterView mCaptureMeters, mPlaybackMeters;
     private WaveScopeView mScope;
     private SpectrumView mSpectrum;
-    private FaderView mGain, mMonitorGain;
+    private FaderStrip mGain, mMonitorGain;
     private TextView mTimer, mPeakReadout, mStatusLine, mFileName, mDiskLine, mSessionLine;
     private TextView mRecordBtn, mMonitorBtn, mPauseBtn, mStopBtn;
     private LinearLayout mConfigRow, mTakeActions;
-    private TextView mScopeToggle;
+    private TextView mScopeToggle, mAnalyserBtn, mFreezeBtn;
     private boolean mScopeVisible = true;
     private boolean mFrozen = false;
     private boolean mScopeIsSpectrum = false;
@@ -65,59 +65,64 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
     private void transport() {
         LinearLayout card = cardStyled(R.drawable.bg_tile);
 
+        LinearLayout top = Ui.row(act);
         mStatusLine = Ui.text(act, "", R.style.T_Section);
-        card.addView(mStatusLine);
-
+        top.addView(mStatusLine, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         mTimer = Ui.text(act, "00:00.0", R.style.T_Display);
         mTimer.setTypeface(android.graphics.Typeface.MONOSPACE);
         mTimer.setTextColor(th.textPrimary);
-        card.addView(mTimer);
+        mTimer.setSingleLine(true);
+        top.addView(mTimer);
+        Ui.addWide(card, top);
 
         mFileName = Ui.caption(act, "");
-        card.addView(mFileName);
+        mFileName.setSingleLine(true);
+        mFileName.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        Ui.addWide(card, mFileName);
 
         card.addView(Ui.spacer(act, 12));
 
-        LinearLayout buttons = Ui.row(act);
-        mRecordBtn = Ui.button(act, "\u25cf  Record", R.style.Btn_Rec, v -> onRecord());
-        mRecordBtn.setTextSize(16);
-        buttons.addView(mRecordBtn, new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1.4f));
-        buttons.addView(Ui.spacer(act, 8));
-        mPauseBtn = Ui.button(act, "II", R.style.Btn, v -> togglePause());
-        buttons.addView(mPauseBtn);
-        buttons.addView(Ui.spacer(act, 8));
-        mStopBtn = Ui.button(act, "\u25a0", R.style.Btn, v -> onStop());
-        buttons.addView(mStopBtn);
-        card.addView(buttons);
+        // the button the whole app exists for: full width, at thumb height
+        mRecordBtn = Ui.button(act, "\u25cf  Arm & record", R.style.Btn_Rec, v -> onRecord());
+        mRecordBtn.setTextSize(17);
+        card.addView(mRecordBtn, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(act, 58)));
 
         card.addView(Ui.spacer(act, 10));
         LinearLayout second = Ui.row(act);
+        mPauseBtn = Ui.button(act, "II  Pause", R.style.Btn, v -> togglePause());
+        second.addView(mPauseBtn, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        second.addView(Ui.spacer(act, 8));
+        mStopBtn = Ui.button(act, "\u25a0  Stop", R.style.Btn, v -> onStop());
+        second.addView(mStopBtn, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        second.addView(Ui.spacer(act, 8));
         mMonitorBtn = Ui.button(act, "Monitor: off", R.style.Btn, v -> onMonitor());
         second.addView(mMonitorBtn, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        second.addView(Ui.spacer(act, 8));
-        second.addView(Ui.button(act, "Preset", R.style.Btn, v -> showPresetPicker()),
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        card.addView(second);
+        Ui.addWide(card, second);
 
         card.addView(Ui.spacer(act, 8));
         mTakeActions = Ui.row(act);
         // filled in when a take has just been saved; until then it is not there at all
         mTakeActions.setVisibility(View.GONE);
-        card.addView(mTakeActions);
+        Ui.addWide(card, mTakeActions);
     }
 
-    // ----------------------------------------------------------------- meters
+    // ----------------------------------------------------------------- levels
     private void metersCard() {
-        LinearLayout card = card("Levels", null);
+        LinearLayout card = card("Levels", "peak hold 2.5 s");
 
         mPeakReadout = Ui.text(act, "peak \u2014", R.style.T_Caption);
         mPeakReadout.setTextColor(th.textTertiary);
-        card.addView(mPeakReadout);
+        Ui.addWide(card, mPeakReadout);
 
         card.addView(Ui.spacer(act, 8));
 
+        // the two meters share the width evenly - no fixed sizes, so the same
+        // layout lands correctly on a 16:9 phone and on a tablet
         LinearLayout meters = Ui.row(act);
         LinearLayout captureCol = Ui.column(act);
         captureCol.addView(Ui.text(act, "INPUT", R.style.T_Section));
@@ -128,94 +133,129 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
             toast("Peak hold cleared");
             updatePeakReadout();
         });
-        int mw = Ui.dp(act, 120);
-        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(mw, Ui.dp(act, 168));
-        mp.topMargin = Ui.dp(act, 4);
-        mCaptureMeters.setLayoutParams(mp);
-        captureCol.addView(mCaptureMeters);
-        meters.addView(captureCol);
+        mCaptureMeters.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(act, 190)));
+        Ui.addWide(captureCol, mCaptureMeters);
+        meters.addView(captureCol, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        meters.addView(Ui.spacer(act, 6));
+        meters.addView(Ui.spacer(act, 8));
 
         LinearLayout playCol = Ui.column(act);
         playCol.addView(Ui.text(act, "OUTPUT", R.style.T_Section));
         mPlaybackMeters = new LevelMeterView(act);
         mPlaybackMeters.setChannelCount(2);
         mPlaybackMeters.setShowScale(false);
-        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(mw, Ui.dp(act, 168));
-        pp.topMargin = Ui.dp(act, 4);
-        mPlaybackMeters.setLayoutParams(pp);
-        playCol.addView(mPlaybackMeters);
-        meters.addView(playCol);
+        mPlaybackMeters.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(act, 190)));
+        Ui.addWide(playCol, mPlaybackMeters);
+        meters.addView(playCol, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Ui.addWide(card, meters);
 
-        meters.addView(Ui.spacer(act, 10));
+        card.addView(Ui.spacer(act, 12));
 
+        // gain and monitor: a fader each, plus the buttons that move them by
+        // exactly 0.1 dB
         LinearLayout faders = Ui.row(act);
-        mGain = new FaderView(act);
-        mGain.setLabel("GAIN");
-        mGain.setValue(App.get().prefs().gainDb());
-        mGain.setDefault(0f);
+        mGain = FaderStrip.gain(act);
         mGain.setOnValueChanged((db, done) -> {
             App.get().prefs().setGainDb(db);
-            if (done) refreshPeakWarn();
+            if (done) {
+                refreshPeakWarn();
+                act.refreshHeader();
+            }
         });
-        faders.addView(mGain, new LinearLayout.LayoutParams(0, Ui.dp(act, 168), 1f));
-
-        mMonitorGain = new FaderView(act);
-        mMonitorGain.setLabel("MONITOR");
-        mMonitorGain.setValue(App.get().prefs().monitorGainDb());
-        mMonitorGain.setDefault(-6f);
-        mMonitorGain.setOnValueChanged((db, done) -> {
-            App.get().prefs().setMonitorGainDb(db);
-            act.engine().setMonitorGainDb(db);
-        });
-        faders.addView(mMonitorGain, new LinearLayout.LayoutParams(0, Ui.dp(act, 168), 1f));
-
-        meters.addView(faders, new LinearLayout.LayoutParams(0,
+        faders.addView(mGain, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        faders.addView(Ui.spacer(act, 6));
+        mMonitorGain = FaderStrip.monitor(act);
+        faders.addView(mMonitorGain, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Ui.addWide(card, faders);
 
-        card.addView(meters);
-        card.addView(Ui.caption(act, "Tap a meter to clear its peak hold."));
+        card.addView(Ui.caption(act, "Tap a meter to clear its peak hold \u00b7 drag a fader, "
+                + "or use its \u22120.1 / +0.1 buttons"));
+        card.addView(Ui.spacer(act, 6));
+        LinearLayout extra = Ui.row(act);
+        extra.addView(Ui.button(act, "Preset", R.style.Btn_Small, v -> showPresetPicker()),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        extra.addView(Ui.spacer(act, 6));
+        extra.addView(Ui.button(act, "Mixer", R.style.Btn_Small,
+                        v -> navigate(MainActivity.PAGE_MIXER)),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        extra.addView(Ui.spacer(act, 6));
+        extra.addView(Ui.button(act, "Devices", R.style.Btn_Small,
+                        v -> navigate(MainActivity.PAGE_DEVICES)),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Ui.addWide(card, extra);
     }
 
     // ------------------------------------------------------------------ scope
     private void scopeCard() {
         LinearLayout card = card("Signal", null);
-        LinearLayout row = Ui.row(act);
-        row.addView(Ui.body(act, "Scope / spectrum"), new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        mScopeToggle = Ui.button(act, "Spectrum", R.style.Btn_Small, v -> {
-            mScopeIsSpectrum = !mScopeIsSpectrum;
-            mScopeToggle.setText(mScopeIsSpectrum ? "Scope" : "Spectrum");
-            mScope.setVisibility(mScopeIsSpectrum ? View.GONE : View.VISIBLE);
-            mSpectrum.setVisibility(mScopeIsSpectrum ? View.VISIBLE : View.GONE);
+        // the label gets its own line: three buttons and a caption never fit beside
+        // each other on a 720 px phone
+        card.addView(Ui.body(act, "Scope / spectrum"));
+
+        mScopeToggle = Ui.button(act, "Waveform", R.style.Btn_Small, v -> {
+            boolean show = mScope.getVisibility() != View.VISIBLE;
+            mScope.setVisibility(show ? View.VISIBLE : View.GONE);
+            mScopeToggle.setText(show ? "Waveform on" : "Waveform off");
         });
-        row.addView(mScopeToggle);
-        row.addView(Ui.spacer(act, 6));
-        row.addView(Ui.button(act, "Freeze", R.style.Btn_Small, v -> {
+        mScopeToggle.setText("Waveform on");
+        mAnalyserBtn = Ui.button(act, "Analyser on", R.style.Btn_Small, v -> {
+            boolean show = mSpectrum.getVisibility() != View.VISIBLE;
+            mSpectrum.setVisibility(show ? View.VISIBLE : View.GONE);
+            mAnalyserBtn.setText(show ? "Analyser on" : "Analyser off");
+        });
+        mFreezeBtn = Ui.button(act, "Freeze", R.style.Btn_Small, v -> {
             mFrozen = !mFrozen;
             mScope.setFrozen(mFrozen);
             mSpectrum.setFrozen(mFrozen);
+            mFreezeBtn.setText(mFrozen ? "Frozen" : "Freeze");
             toast(mFrozen ? "Display frozen" : "Display live");
-        }));
-        card.addView(row);
+        });
+
+        LinearLayout row = Ui.row(act);
+        row.addView(mScopeToggle, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(Ui.spacer(act, 6));
+        row.addView(mAnalyserBtn, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(Ui.spacer(act, 6));
+        row.addView(mFreezeBtn, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Ui.addWide(card, row);
 
         card.addView(Ui.spacer(act, 8));
+        // both displays are live from the moment the app opens: the waveform for
+        // the shape of the signal, the spectrum for what is in it
         mScope = new WaveScopeView(act);
         card.addView(mScope, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(act, 96)));
+        card.addView(Ui.spacer(act, 6));
         mSpectrum = new SpectrumView(act);
         mSpectrum.setSampleRate(App.get().prefs().sampleRate());
-        mSpectrum.setVisibility(View.GONE);
+        mSpectrum.setChannelCount(App.get().prefs().channels());
+        mSpectrum.setVisibility(View.VISIBLE);
+        // tap the analyser to drop its peak caps, like the meters
+        mSpectrum.setOnClickListener(v -> {
+            mSpectrum.clearCaps();
+            toast("Spectrum peaks cleared");
+        });
         card.addView(mSpectrum, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(act, 96)));
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(act, 112)));
+        card.addView(Ui.caption(act, "Real time \u00b7 40 Hz to 20 kHz \u00b7 tap to clear the "
+                + "falling peaks. Feed it from the interface while monitoring, or from "
+                + "playback while auditioning a take."));
     }
 
     // ----------------------------------------------------------------- format
     private void formatCard() {
-        LinearLayout card = card("Capture format", null);
+        LinearLayout card = card("Capture format", "changing this arms a new take");
         mConfigRow = Ui.column(act);
-        card.addView(mConfigRow);
+        Ui.addWide(card, mConfigRow);
         rebuildConfig();
     }
 
@@ -247,48 +287,58 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
         row(mConfigRow, "Container", Formats.displayName(App.get().prefs().container()),
                 Formats.isLossless(App.get().prefs().container()) ? th.ok : th.warn);
 
-        String note = "File path: " + Fmt.khz(App.get().prefs().sampleRate()) + " / "
-                + App.get().prefs().bitDepth() + "-bit / "
-                + App.get().prefs().channels() + " ch  \u00b7  writing "
-                + App.get().prefs().container().toUpperCase();
-        TextView t = Ui.caption(act, note);
-        mConfigRow.addView(t);
-
         mConfigRow.addView(Ui.spacer(act, 10));
-        LinearLayout buttons = Ui.row(act);
-        buttons.addView(Ui.button(act, "Rate", R.style.Btn_Small, v -> pickRate(rates)));
-        buttons.addView(Ui.spacer(act, 6));
-        buttons.addView(Ui.button(act, "Depth", R.style.Btn_Small, v -> pickDepth(depths)));
-        buttons.addView(Ui.spacer(act, 6));
-        buttons.addView(Ui.button(act, "Channels", R.style.Btn_Small, v -> pickChannels(channels)));
-        buttons.addView(Ui.spacer(act, 6));
-        buttons.addView(Ui.button(act, "Buffer", R.style.Btn_Small, v -> pickBuffer()));
-        buttons.addView(Ui.spacer(act, 6));
-        buttons.addView(Ui.button(act, "Format", R.style.Btn_Small, v -> pickContainer()));
-        mConfigRow.addView(buttons);
+        // two rows of buttons, weighted, so nothing is clipped on a narrow screen
+        LinearLayout first = Ui.row(act);
+        first.addView(Ui.button(act, "Rate", R.style.Btn_Small, v -> pickRate(rates)),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        first.addView(Ui.spacer(act, 6));
+        first.addView(Ui.button(act, "Depth", R.style.Btn_Small, v -> pickDepth(depths)),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        first.addView(Ui.spacer(act, 6));
+        first.addView(Ui.button(act, "Channels", R.style.Btn_Small, v -> pickChannels(channels)),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Ui.addWide(mConfigRow, first);
+        mConfigRow.addView(Ui.spacer(act, 6));
+        LinearLayout second = Ui.row(act);
+        second.addView(Ui.button(act, "Buffer", R.style.Btn_Small, v -> pickBuffer()),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        second.addView(Ui.spacer(act, 6));
+        second.addView(Ui.button(act, "Format", R.style.Btn_Small, v -> pickContainer()),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        second.addView(Ui.spacer(act, 6));
+        second.addView(Ui.button(act, "Devices", R.style.Btn_Small,
+                        v -> navigate(MainActivity.PAGE_DEVICES)),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Ui.addWide(mConfigRow, second);
     }
 
+    /** label and value share the width; the value never gets clipped to a column */
     private void row(LinearLayout parent, String key, String value, int color) {
         LinearLayout r = Ui.row(act);
         TextView k = Ui.caption(act, key);
-        k.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(act, 92),
-                ViewGroup.LayoutParams.WRAP_CONTENT));
+        k.setLayoutParams(new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 0.8f));
         r.addView(k);
         TextView v = Ui.body(act, value);
         v.setTextColor(color);
         r.addView(v, new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1.2f));
         r.setPadding(0, Ui.dp(act, 4), 0, Ui.dp(act, 4));
-        parent.addView(r);
+        Ui.addWide(parent, r);
     }
 
     // -------------------------------------------------------------- destination
     private void destinationCard() {
         LinearLayout card = card("Destination", null);
         mSessionLine = Ui.body(act, "");
-        card.addView(mSessionLine);
+        Ui.addWide(card, mSessionLine);
         mDiskLine = Ui.caption(act, "");
-        card.addView(mDiskLine);
+        Ui.addWide(card, mDiskLine);
+        card.addView(Ui.spacer(act, 6));
+        card.addView(Ui.caption(act, "Recorder keeps it simple: it writes to the folder you "
+                + "pick, or to the app's own folder when you leave it alone. Exports and "
+                + "shares make their own copies."));
         card.addView(Ui.spacer(act, 10));
         LinearLayout r = Ui.row(act);
         r.addView(Ui.button(act, "Change folder", R.style.Btn_Small,
@@ -307,7 +357,7 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
         r.addView(Ui.button(act, "Storage", R.style.Btn_Small,
                         v -> navigate(MainActivity.PAGE_STORAGE)),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        card.addView(r);
+        Ui.addWide(card, r);
     }
 
     private void pickFolderManually() {
@@ -412,7 +462,7 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
             act.engine().startMonitor();
         }
         rebuildConfig();
-        act.refreshTopbar();
+        act.refreshHeader();
         updateDiskLine();
     }
 
@@ -565,14 +615,14 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
         box.setPadding(Ui.dp(act, 12), Ui.dp(act, 12), Ui.dp(act, 12), Ui.dp(act, 12));
         TextView saved = Ui.body(act, "Saved: " + t.title);
         saved.setTextColor(th.ok);
-        box.addView(saved);
+        Ui.addWide(box, saved);
         box.addView(Ui.caption(act, r.summary() + "   peak " + Fmt.db(r.peakDb)
                 + "   rms " + Fmt.db(r.rmsDb)));
         if (r.xruns > 0 || r.droppedBlocks > 0) {
             TextView warn = Ui.caption(act, "Buffer warnings: " + r.xruns + " xruns, "
                     + r.droppedBlocks + " dropped blocks - try a larger buffer.");
             warn.setTextColor(th.warn);
-            box.addView(warn);
+            Ui.addWide(box, warn);
         }
         box.addView(Ui.spacer(act, 8));
         LinearLayout actions = Ui.row(act);
@@ -584,10 +634,15 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
                         v -> Dialogs.renameTrack(act, act.store(), t, () -> refresh())),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         actions.addView(Ui.spacer(act, 6));
+        actions.addView(Ui.button(act, "Save", R.style.Btn_Small,
+                        v -> Dialogs.saveToDownloads(act, new File(t.filePath),
+                                Formats.mimeFor(t.container))),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        actions.addView(Ui.spacer(act, 6));
         actions.addView(Ui.button(act, "Share", R.style.Btn_Small,
                         v -> Dialogs.shareFile(act, new File(t.filePath), Formats.mimeFor(t.container))),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        box.addView(actions);
+        Ui.addWide(box, actions);
         mTakeActions.addView(box);
         mTakeActions.setVisibility(View.VISIBLE);
     }
@@ -742,7 +797,7 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
         act.engine().addListener(this);
         updateTransport();
         rebuildConfig();
-        act.refreshTopbar();
+        act.refreshHeader();
     }
 
     @Override
@@ -772,6 +827,14 @@ public class RecorderScreen extends Screen implements AudioEngine.Listener {
         act.runOnUiThread(() -> {
             if (mScope != null) mScope.push(interleaved, frames, channels);
             if (mSpectrum != null) mSpectrum.push(interleaved, frames, channels);
+        });
+    }
+
+    /** what is playing back, so the analyser is live during audition too */
+    @Override
+    public void onPlaybackScope(float[] monoWindow, int frames) {
+        act.runOnUiThread(() -> {
+            if (mSpectrum != null) mSpectrum.pushWindow(monoWindow, frames);
         });
     }
 

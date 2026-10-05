@@ -8,6 +8,8 @@ import com.mostakim.audiorec.App;
 import com.mostakim.audiorec.db.Models.Export;
 import com.mostakim.audiorec.db.Models.Track;
 import com.mostakim.audiorec.db.Store;
+import com.mostakim.audiorec.share.Downloads;
+import com.mostakim.audiorec.util.Formats;
 import com.mostakim.audiorec.util.Ids;
 
 import java.io.File;
@@ -29,6 +31,13 @@ public final class Exporter {
         void onExportDone(Export e);
 
         void onExportFailed(String message);
+
+        /**
+         * The finished export has also been published to {@code Download/AUDIO-rec},
+         * where a file manager, a USB cable, Drive or WhatsApp can reach it.
+         */
+        default void onExportPublished(Export e, String visiblePath) {
+        }
     }
 
     public static File exportsDir(Context c) {
@@ -62,7 +71,17 @@ public final class Exporter {
                     e.status = "ready";
                     e.note = result.note == null ? "" : result.note;
                     store.insert(e);
-                    if (cb != null) main.post(() -> cb.onExportDone(e));
+                    // The rendered copy lives in the app's own folder, which no
+                    // file manager shows.  A second copy in the public Downloads
+                    // collection is what makes the export an actual file the
+                    // operator can find, move, share or plug into a computer.
+                    Downloads.save(app, out, Formats.mimeFor(result.container), out.getName(),
+                            (uri, visible, error) -> {
+                                if (cb != null) main.post(() -> {
+                                    cb.onExportDone(e);
+                                    if (uri != null) cb.onExportPublished(e, visible);
+                                });
+                            });
                 },
                 error -> {
                     if (cb != null) main.post(() -> cb.onExportFailed(error));

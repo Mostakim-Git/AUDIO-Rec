@@ -32,10 +32,19 @@ public class SpectrumView extends View {
     private final int[] mBinStart = new int[BARS];
     private final int[] mBinEnd = new int[BARS];
 
+    /** how fast the bars fall, and how fast they rise, in seconds */
+    private static final float RELEASE_SECONDS = 0.22f;
+    private static final float ATTACK_SECONDS = 0.02f;
+    /** peak caps fall at 18 dB per second, on a scale that spans 80 dB */
+    private static final float CAP_FALL_PER_SECOND = 18f / 80f;
+
     private int mSampleRate = 48000;
     private int mChannels = 2;
     private boolean mFrozen = false;
+    private long mLastComputeNs = 0L;
+    private int mComputes = 0;
     private final float[] mSource = new float[FFT];
+    private int mSourceFilled = 0;
 
     public SpectrumView(Context c) {
         this(c, null);
@@ -64,6 +73,10 @@ public class SpectrumView extends View {
         mFrozen = f;
     }
 
+    public boolean isFrozen() {
+        return mFrozen;
+    }
+
     private void computeBins() {
         double fMin = 40, fMax = Math.min(20000, mSampleRate / 2.0);
         double logMin = Math.log10(fMin), logMax = Math.log10(fMax);
@@ -76,12 +89,35 @@ public class SpectrumView extends View {
         }
     }
 
-    /** feed interleaved frame - only the first channel is analysed */
+    /** feed interleaved frames - only the first channel is analysed */
     public void push(float[] interleaved, int frames, int channels) {
-        if (mFrozen || mTheme == null) return;
+        if (mFrozen || mTheme == null || interleaved == null || frames <= 0) return;
+        int ch = Math.max(1, channels);
         int n = Math.min(frames, FFT);
         int off = frames - n;
-        for (int i = 0; i < n; i++) mSource[i] = interleaved[(off + i) * channels];
+        if (n < FFT) {
+            // keep the window contiguous: shift what we have and append the rest
+            int keep = Math.min(FFT - n, Math.max(0, mSourceFilled));
+            System.arraycopy(mSource, mSourceFilled - keep, mSource, 0, keep);
+            for (int i = 0; i < n; i++) mSource[keep + i] = interleaved[(off + i) * ch];
+            mSourceFilled = keep + n;
+        } else {
+            for (int i = 0; i < n; i++) mSource[i] = interleaved[(off + i) * ch];
+            mSourceFilled = FFT;
+        }
+        if (mSourceFilled < FFT / 8) return;      // not enough to say anything yet
+        compute();
+        postInvalidateOnAnimation();
+    }
+
+    /** feed a mono analyser window (already contiguous), e.g. from playback */
+    public void pushWindow(float[] mono, int frames) {
+        if (mFrozen || mTheme == null || mono == null || frames <= 0) return;
+        int n = Math.min(frames, FFT);
+        int off = frames - n;
+        System.arraycopy(mono, off, mSource, 0, n);
+        if (n < FFT) java.util.Arrays.fill(mSource, n, FFT, 0f);
+        mSourceFilled = FFT;
         compute();
         postInvalidateOnAnimation();
     }
@@ -91,6 +127,18 @@ public class SpectrumView extends View {
         Arrays.fill(mIm, 0f);
         for (int i = 0; i < FFT; i++) mRe[i] = mSource[i] * mWindow[i];
         fft(mRe, mIm);
+
+        // the ballistics are timed, not per-frame: the bars fall at the same speed
+        // whether the feed is 30 pushes a second or 120, which is what makes a
+        // real-time display readable instead of twitchy
+        long now = System.nanoTime();
+        float dt = mLastComputeNs == 0 ? 0.03f
+                : Math.max(0.001f, Math.min(0.5f, (now - mLastComputeNs) / 1e9f));
+        mLastComputeNs = now;
+        mComputes++;
+        float attack = (float) (1 - Math.exp(-dt / ATTACK_SECONDS));
+        float release = (float) (1 - Math.exp(-dt / RELEASE_SECONDS));
+
         for (int b = 0; b < BARS; b++) {
             float mx = 0f;
             for (int k = mBinStart[b]; k < Math.min(mBinEnd[b], FFT / 2); k++) {
@@ -99,10 +147,32 @@ public class SpectrumView extends View {
             }
             float db = mx <= 0f ? -100f : (float) (20 * Math.log10(mx));
             float norm = Math.max(0f, Math.min(1f, (db + 80f) / 80f));
-            // fast attack / slow release
-            mBars[b] = norm > mBars[b] ? norm : mBars[b] * 0.72f + norm * 0.28f;
-            mCaps[b] = Math.max(mCaps[b] - 0.012f, mBars[b]);
+            mBars[b] += (norm - mBars[b]) * (norm > mBars[b] ? attack : release);
+            mCaps[b] = Math.max(mCaps[b] - CAP_FALL_PER_SECOND * dt, mBars[b]);
         }
+    }
+
+    /** clears the peak caps without disturbing the bars (tap the display) */
+    public void clearCaps() {
+        Arrays.fill(mCaps, 0f);
+        invalidate();
+    }
+
+    public int barCount() {
+        return BARS;
+    }
+
+    public float bar(int i) {
+        return mBars[i];
+    }
+
+    public float cap(int i) {
+        return mCaps[i];
+    }
+
+    /** how many FFTs have been drawn - proof the display is running, not stalled */
+    public int computeCount() {
+        return mComputes;
     }
 
     private static void fft(float[] re, float[] im) {

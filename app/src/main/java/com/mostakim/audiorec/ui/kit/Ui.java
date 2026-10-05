@@ -82,6 +82,24 @@ public final class Ui {
     }
 
     // -------------------------------------------------------------- layout --
+    /**
+     * A vertical container.
+     *
+     * The default layout params matter: a container added to a card without
+     * explicit params would otherwise be measured wrap-content, and a row of
+     * weighted children inside a wrap-content parent collapses to nothing - which
+     * is exactly what "the alignment is wrong" looks like on a device.  Rows and
+     * columns default to the full width of whatever holds them.
+     */
+    /**
+     * A vertical container.
+     *
+     * A container is measured wrap-content until something says otherwise.  That
+     * matters: a row of weighted children - 0 dp wide, sharing the leftover - has
+     * no natural width at all, so a wrap-content parent collapses it to nothing
+     * and the operator sees a card with nothing in it.  Anything that is meant to
+     * span its card has to say so, which is what {@link #wide} is for.
+     */
     public static LinearLayout column(Context c) {
         LinearLayout l = new LinearLayout(c);
         l.setOrientation(LinearLayout.VERTICAL);
@@ -95,17 +113,69 @@ public final class Ui {
         return l;
     }
 
+    /**
+     * The full width of whatever holds it - for a card or a column, not a row.
+     *
+     * Only the width is touched.  A view that already asked for a fixed height -
+     * a 190 dp level meter, say - keeps it, along with its margins.
+     */
+    public static <T extends View> T wide(T v) {
+        ViewGroup.LayoutParams existing = v.getLayoutParams();
+        LinearLayout.LayoutParams lp;
+        if (existing instanceof LinearLayout.LayoutParams) {
+            lp = new LinearLayout.LayoutParams(existing);
+            if (existing instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams m = (ViewGroup.MarginLayoutParams) existing;
+                lp.setMargins(m.leftMargin, m.topMargin, m.rightMargin, m.bottomMargin);
+            }
+        } else {
+            int h = existing == null ? ViewGroup.LayoutParams.WRAP_CONTENT : existing.height;
+            lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h);
+        }
+        lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+        v.setLayoutParams(lp);
+        return v;
+    }
+
+    /** a row that spans its parent */
+    public static LinearLayout wideRow(Context c) {
+        return wide(row(c));
+    }
+
+    /**
+     * Adds a view to a vertical container at full width and returns it.
+     *
+     * Every card in this app is built from these two helpers, so a container can
+     * never silently collapse to zero width again.
+     */
+    public static <T extends View> T addWide(LinearLayout parent, T child) {
+        wide(child);
+        parent.addView(child);
+        return child;
+    }
+
     public static View spacer(Context c, int heightDp) {
         View v = new View(c);
         v.setLayoutParams(new LinearLayout.LayoutParams(1, dp(c, heightDp)));
         return v;
     }
 
+    /**
+     * A filler that pushes what follows it to the far edge of a row.
+     *
+     * It is tagged because it is allowed to measure to nothing: when the text
+     * beside it already fills the row, a zero-width filler is exactly right and
+     * there is nothing to see or tap.
+     */
     public static View flex(Context c) {
         View v = new View(c);
+        v.setTag(FILLER);
         v.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
         return v;
     }
+
+    /** marks a view that carries no content, so tests may skip it when looking for squeezes */
+    public static final String FILLER = "ui:filler";
 
     public static View divider(Context c) {
         View v = new View(c);
@@ -137,7 +207,7 @@ public final class Ui {
             s.setGravity(Gravity.END);
             head.addView(s);
         }
-        l.addView(head);
+        addWide(l, head);
         return l;
     }
 
@@ -148,9 +218,17 @@ public final class Ui {
         texts.addView(body(c, label));
         if (hint != null) texts.addView(caption(c, hint));
         r.addView(texts, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        if (trailing != null) r.addView(trailing);
+        if (trailing != null) {
+            // a long value - a device name, say - must not eat the whole row: the
+            // label beside it is the part an operator reads first
+            if (trailing instanceof TextView) {
+                ((TextView) trailing).setMaxWidth(dp(c, 130));
+            }
+            r.addView(trailing);
+        }
         int pad = dp(c, 10);
         r.setPadding(0, pad, 0, pad);
+        wide(r);
         return r;
     }
 
@@ -256,7 +334,7 @@ public final class Ui {
                         ? InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL
                         : InputType.TYPE_CLASS_TEXT);
         if (initial != null) field.setSelection(field.getText().length());
-        col.addView(field);
+        Ui.addWide(col, field);
 
         AlertDialog d = new AlertDialog.Builder(a)
                 .setTitle(title)

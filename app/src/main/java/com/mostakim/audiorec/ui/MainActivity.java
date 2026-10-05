@@ -13,9 +13,9 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.Window;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -30,7 +30,6 @@ import com.mostakim.audiorec.db.Store;
 import com.mostakim.audiorec.ui.kit.Theme;
 import com.mostakim.audiorec.ui.kit.Ui;
 import com.mostakim.audiorec.ui.screens.AboutScreen;
-import com.mostakim.audiorec.ui.screens.DashboardScreen;
 import com.mostakim.audiorec.ui.screens.DevicesScreen;
 import com.mostakim.audiorec.ui.screens.ExportsScreen;
 import com.mostakim.audiorec.ui.screens.LibraryScreen;
@@ -49,46 +48,67 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The workstation window: navigation rail on the left, contextual header on top,
- * the current page underneath.  No sign-in, no accounts - the app opens straight
- * onto the dashboard and everything it does stays on the device.
+ * The recorder window.
+ *
+ * This is a recording app, so it opens on the recorder: one status header across
+ * the top, the current page filling everything between, and a five-tab bar along
+ * the bottom.  There is no drawer to open, no dashboard to land on first and no
+ * side rail that eats the width a phone does not have - the page under the finger
+ * is always the whole window, in portrait and in landscape, on any aspect ratio.
+ *
+ * Everything is laid out with weights and full-width blocks rather than fixed
+ * pixel widths, which is what keeps the alignment honest on a 20:9 phone, a
+ * 16:9 tablet and everything between.  No sign-in, no accounts, all on-device.
  */
 public class MainActivity extends Activity implements AudioEngine.Listener {
 
-    public static final int PAGE_DASHBOARD = 0;
-    public static final int PAGE_RECORDER = 1;
-    public static final int PAGE_MIXER = 2;
-    public static final int PAGE_DEVICES = 3;
-    public static final int PAGE_SESSIONS = 4;
-    public static final int PAGE_LIBRARY = 5;
-    public static final int PAGE_PLAYLIST = 6;
-    public static final int PAGE_EXPORTS = 7;
-    public static final int PAGE_PRESETS = 8;
-    public static final int PAGE_STORAGE = 9;
-    public static final int PAGE_SETTINGS = 10;
-    public static final int PAGE_ABOUT = 11;
+    public static final int PAGE_RECORDER = 0;
+    public static final int PAGE_MIXER = 1;
+    public static final int PAGE_LIBRARY = 2;
+    public static final int PAGE_PLAYLIST = 3;
+    public static final int PAGE_DEVICES = 4;
+    public static final int PAGE_SESSIONS = 5;
+    public static final int PAGE_EXPORTS = 6;
+    public static final int PAGE_PRESETS = 7;
+    public static final int PAGE_STORAGE = 8;
+    public static final int PAGE_SETTINGS = 9;
+    public static final int PAGE_ABOUT = 10;
 
     private static final int REQ_PERMISSIONS = 4711;
+
+    /** the tabs along the bottom: what an operator reaches in one tap */
+    private static final int[] TABS = {
+            PAGE_RECORDER, PAGE_MIXER, PAGE_LIBRARY, PAGE_PLAYLIST,
+    };
+    private static final String[] TAB_LABELS = {"Record", "Mixer", "Library", "Playlist"};
+    private static final int[] TAB_ICONS = {
+            R.drawable.ic_rec, R.drawable.ic_mixer, R.drawable.ic_library, R.drawable.ic_playlist,
+    };
+
+    /** what the fifth tab opens */
+    private static final int[] MORE_PAGES = {
+            PAGE_DEVICES, PAGE_SESSIONS, PAGE_EXPORTS, PAGE_PRESETS,
+            PAGE_STORAGE, PAGE_SETTINGS, PAGE_ABOUT,
+    };
+    private static final String[] MORE_LABELS = {
+            "Devices and interfaces", "Sessions", "Export Files", "Device Presets",
+            "Storage", "Settings", "About",
+    };
 
     private Theme mTheme;
     private Store mStore;
     private AudioEngine mEngine;
 
-    private SidebarLayout mShell;
-    private LinearLayout mSidebar;
-    private LinearLayout mTopbar;
-    private TextView mTitle, mSubtitle;
-    private LinearLayout mPills;
-    private TextView mRecDot;
+    private LinearLayout mRoot, mHeader, mStatusRow;
+    private TextView mTitle, mSubtitle, mRecDot, mInputChip, mFormatChip, mSpaceChip;
     private FrameLayout mHost;
-    private ImageView mMenuIcon;
+    private LinearLayout mTabs;
+    private final Map<Integer, TextView> mMoreItems = new HashMap<>();
 
     private final Map<Integer, Screen> mScreens = new HashMap<>();
-    private final Map<Integer, TextView> mNavItems = new HashMap<>();
-    private int mPage = PAGE_DASHBOARD;
-    private int mLastSidebarPage = -1;
-
-    private boolean mWasDrawerMode;
+    private final Map<Integer, View> mTabViews = new HashMap<>();
+    private int mPage = PAGE_RECORDER;
+    private boolean mUpdatingTabs = false;
 
     private final BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
         @Override
@@ -107,20 +127,18 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
         getWindow().setStatusBarColor(mTheme.bgRoot);
         getWindow().setNavigationBarColor(mTheme.bgRoot);
         getWindow().setBackgroundDrawableResource(R.color.bg_root);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            getWindow().getAttributes().layoutInDisplayCutoutMode =
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        }
+        // stay inside the display cutout in landscape instead of hiding the status
+        // header behind a notch or a camera hole
+        getWindow().getAttributes().layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
 
         buildShell();
-        buildSidebar();
         mEngine.addListener(this);
         mEngine.refreshDevices();
         requestNeededPermissions();
 
-        // deep links from the USB attach intent
         handleIntent(getIntent());
-        navigate(PAGE_DASHBOARD);
+        navigate(PAGE_RECORDER);
     }
 
     @Override
@@ -135,6 +153,7 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
         if (intent.getAction() != null
                 && intent.getAction().startsWith("android.hardware.usb.action")) {
             mEngine.refreshDevices();
+            navigate(PAGE_RECORDER);
         }
     }
 
@@ -143,8 +162,6 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
         super.onResume();
         IntentFilter usbState = new IntentFilter("android.hardware.usb.action.USB_STATE");
         if (Build.VERSION.SDK_INT >= 33) {
-            // system broadcast, but be explicit on Android 13+ instead of relying
-            // on the "system broadcasts are exempt" carve-out
             registerReceiver(mUsbReceiver, usbState, Context.RECEIVER_NOT_EXPORTED);
         } else {
             registerReceiver(mUsbReceiver, usbState);
@@ -153,7 +170,7 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
         mEngine.refreshDevices();
         Screen s = mScreens.get(mPage);
         if (s != null) s.onResume();
-        refreshTopbar();
+        refreshHeader();
         updateKeepScreen();
     }
 
@@ -185,198 +202,164 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
 
     // ------------------------------------------------------------------ shell
     private void buildShell() {
-        mShell = new SidebarLayout(this);
-        mSidebar = Ui.column(this);
-        mSidebar.setBackgroundColor(mTheme.bgSidebar);
-        mSidebar.setPadding(Ui.dp(this, 14), Ui.dp(this, 18), Ui.dp(this, 14), Ui.dp(this, 18));
+        mRoot = Ui.column(this);
+        mRoot.setBackgroundColor(mTheme.bgRoot);
 
-        LinearLayout content = Ui.column(this);
-        content.setBackgroundColor(mTheme.bgRoot);
-        mTopbar = Ui.row(this);
-        mTopbar.setBackgroundColor(mTheme.bgPanel);
-        mTopbar.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
-
-        // hamburger (drawer mode only)
-        LinearLayout menuBtn = Ui.row(this);
-        menuBtn.setGravity(Gravity.CENTER);
-        menuBtn.setBackgroundResource(R.drawable.bg_btn);
-        int ms = Ui.dp(this, 40);
-        menuBtn.setLayoutParams(new LinearLayout.LayoutParams(ms, ms));
-        mMenuIcon = new ImageView(this);
-        mMenuIcon.setImageResource(R.drawable.ic_menu);
-        mMenuIcon.setColorFilter(mTheme.textPrimary);
-        LinearLayout.LayoutParams mip = new LinearLayout.LayoutParams(
-                Ui.dp(this, 20), Ui.dp(this, 20));
-        mMenuIcon.setLayoutParams(mip);
-        menuBtn.addView(mMenuIcon);
-        menuBtn.setOnClickListener(v -> mShell.toggleDrawer());
-        mTopbar.addView(menuBtn);
-
-        LinearLayout titles = Ui.column(this);
-        titles.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 8), 0);
-        mTitle = Ui.title(this, "");
-        mSubtitle = Ui.caption(this, "");
-        titles.addView(mTitle);
-        titles.addView(mSubtitle);
-        mTopbar.addView(titles, new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        mPills = Ui.row(this);
-        mPills.setGravity(Gravity.END);
-        mRecDot = Ui.pill(this, "\u25cf REC", R.drawable.bg_pill_rec, mTheme.rec);
-        mRecDot.setVisibility(View.GONE);
-        mPills.addView(mRecDot);
-        mTopbar.addView(mPills);
-
-        content.addView(mTopbar, new LinearLayout.LayoutParams(
+        mRoot.addView(buildHeader(), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        View hairline = new View(this);
-        hairline.setBackgroundColor(mTheme.strokeSoft);
-        content.addView(hairline, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, Ui.dp(this, 1))));
-
         mHost = new FrameLayout(this);
-        content.addView(mHost, new LinearLayout.LayoutParams(
+        mHost.setBackgroundColor(mTheme.bgRoot);
+        mRoot.addView(mHost, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        // content first, rail second: the rail is the topmost child, so it draws
-        // over the drawer scrim and gets first refusal on touches
-        mShell.setChildren(content, mSidebar);
+        mRoot.addView(buildTabs(), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        setContentView(mShell);
-
-        mShell.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
-            boolean drawer = (r - l) < Ui.dp(this, 620);
-            if (drawer != mWasDrawerMode) {
-                mWasDrawerMode = drawer;
-                mShell.setDrawerMode(drawer);
-                updateMenuVisibility();
-            }
-        });
-        mShell.post(() -> {
-            boolean drawer = mShell.getWidth() < Ui.dp(this, 620);
-            mWasDrawerMode = drawer;
-            mShell.setDrawerMode(drawer);
-            updateMenuVisibility();
-        });
+        setContentView(mRoot);
     }
 
-    private void updateMenuVisibility() {
-        if (mMenuIcon == null) return;
-        mMenuIcon.setVisibility(mShell.isDrawerMode() ? View.VISIBLE : View.GONE);
-    }
+    /** one status header: who we are, where we are, and what the interface is doing */
+    private LinearLayout buildHeader() {
+        mHeader = Ui.column(this);
+        mHeader.setBackgroundColor(mTheme.bgPanel);
+        mHeader.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12), Ui.dp(this, 6));
 
-    private void buildSidebar() {
-        mSidebar.removeAllViews();
+        LinearLayout top = Ui.row(this);
 
-        // brand lockup
-        LinearLayout brand = Ui.row(this);
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.ic_logo);
         logo.setColorFilter(mTheme.accent);
-        int s = Ui.dp(this, 34);
-        logo.setLayoutParams(new LinearLayout.LayoutParams(s, s));
-        brand.addView(logo);
-        LinearLayout brandText = Ui.column(this);
-        brandText.setPadding(Ui.dp(this, 10), 0, 0, 0);
-        TextView name = Ui.head(this, "AUDIO-rec");
-        name.setTextColor(mTheme.textPrimary);
-        TextView tag = Ui.text(this, "USB recording workstation", R.style.T_Caption);
-        tag.setTextColor(mTheme.textTertiary);
-        brandText.addView(name);
-        brandText.addView(tag);
-        brand.addView(brandText);
-        mSidebar.addView(brand);
+        int ls = Ui.dp(this, 24);
+        LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(ls, ls);
+        llp.rightMargin = Ui.dp(this, 8);
+        logo.setLayoutParams(llp);
+        top.addView(logo);
 
-        addNavSection("CAPTURE");
-        addNavItem(PAGE_DASHBOARD, "Dashboard", R.drawable.ic_dash);
-        addNavItem(PAGE_RECORDER, "Recorder", R.drawable.ic_rec);
-        addNavItem(PAGE_MIXER, "Mixer", R.drawable.ic_mixer);
-        addNavItem(PAGE_DEVICES, "Devices", R.drawable.ic_usb);
+        TextView brand = Ui.text(this, "AUDIO-rec", R.style.T_Head);
+        brand.setTextColor(mTheme.accent);
+        brand.setSingleLine(true);
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        blp.rightMargin = Ui.dp(this, 10);
+        brand.setLayoutParams(blp);
+        top.addView(brand);
 
-        addNavSection("CONTENT");
-        addNavItem(PAGE_SESSIONS, "Sessions", R.drawable.ic_sessions);
-        addNavItem(PAGE_LIBRARY, "Library", R.drawable.ic_library);
-        addNavItem(PAGE_PLAYLIST, "Playlist", R.drawable.ic_playlist);
-        addNavItem(PAGE_EXPORTS, "Export Files", R.drawable.ic_export);
-        addNavItem(PAGE_PRESETS, "Device Presets", R.drawable.ic_preset);
+        mTitle = Ui.text(this, "Recorder", R.style.T_Head);
+        mTitle.setSingleLine(true);
+        top.addView(mTitle);
 
-        addNavSection("SYSTEM");
-        addNavItem(PAGE_STORAGE, "Storage", R.drawable.ic_storage);
-        addNavItem(PAGE_SETTINGS, "Settings", R.drawable.ic_settings);
-        addNavItem(PAGE_ABOUT, "About", R.drawable.ic_about);
+        mSubtitle = Ui.caption(this, "");
+        mSubtitle.setSingleLine(true);
+        mSubtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        slp.leftMargin = Ui.dp(this, 8);
+        mSubtitle.setLayoutParams(slp);
+        top.addView(mSubtitle);
 
-        mSidebar.addView(Ui.spacer(this, 10));
-        View flex = Ui.flex(this);
-        flex.setLayoutParams(new LinearLayout.LayoutParams(1, 0, 1f));
-        mSidebar.addView(flex);
+        mRecDot = Ui.pill(this, "\u25cf REC", R.drawable.bg_pill_rec, mTheme.rec);
+        mRecDot.setVisibility(View.GONE);
+        top.addView(mRecDot);
+        Ui.addWide(mHeader, top);
 
-        // live footer: the current interface, always visible
-        LinearLayout footer = Ui.column(this);
-        footer.setBackgroundResource(R.drawable.bg_card_flat);
-        footer.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
-        TextView fh = Ui.text(this, "CURRENT INPUT", R.style.T_Section);
-        footer.addView(fh);
-        TextView dev = Ui.body(this, "\u2014");
-        dev.setTag("footer_device");
-        footer.addView(dev);
-        TextView spec = Ui.caption(this, "");
-        spec.setTag("footer_spec");
-        footer.addView(spec);
-        footer.setOnClickListener(v -> navigate(PAGE_DEVICES));
-        mSidebar.addView(footer);
-        mSidebar.addView(Ui.spacer(this, 8));
-        TextView credit = Ui.text(this, "Mostakim Billah  \u00b7  v1.0.0", R.style.T_Caption);
-        credit.setTextColor(mTheme.textTertiary);
-        mSidebar.addView(credit);
+        // the status strip: input, format, free space, output.  It scrolls sideways
+        // rather than wrapping, so a narrow screen never clips it and a wide one
+        // shows everything at once.
+        HorizontalScrollView scroller = new HorizontalScrollView(this);
+        scroller.setHorizontalScrollBarEnabled(false);
+        scroller.setFillViewport(true);
+        mStatusRow = Ui.row(this);
+        int vpad = Ui.dp(this, 2);
+        mStatusRow.setPadding(0, vpad, 0, vpad);
+        scroller.addView(mStatusRow, new HorizontalScrollView.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        mInputChip = chip("IN", () -> navigate(PAGE_DEVICES));
+        mFormatChip = chip("format", () -> navigate(PAGE_RECORDER));
+        mSpaceChip = chip("space", () -> navigate(PAGE_STORAGE));
+        mHeader.addView(scroller, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return mHeader;
     }
 
-    private void addNavSection(String label) {
-        TextView t = Ui.text(this, label, R.style.T_Section);
+    /** one tappable status chip */
+    private TextView chip(String label, final Runnable tap) {
+        TextView t = Ui.badge(this, label);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = Ui.dp(this, 18);
-        lp.bottomMargin = Ui.dp(this, 6);
-        lp.leftMargin = Ui.dp(this, 8);
+        lp.rightMargin = Ui.dp(this, 6);
         t.setLayoutParams(lp);
-        mSidebar.addView(t);
+        t.setClickable(true);
+        t.setFocusable(true);
+        t.setOnClickListener(v -> tap.run());
+        mStatusRow.addView(t);
+        return t;
     }
 
-    private void addNavItem(final int page, String label, int iconRes) {
-        LinearLayout row = Ui.row(this);
-        row.setPadding(Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10));
-        row.setBackgroundResource(R.drawable.bg_sidebar_item);
-        row.setClickable(true);
-        row.setFocusable(true);
+    /** the bottom bar: four pages and a sheet with the rest */
+    private LinearLayout buildTabs() {
+        mTabs = Ui.row(this);
+        mTabs.setBackgroundColor(mTheme.bgPanel);
+        mTabs.setPadding(Ui.dp(this, 4), Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 8));
+
+        for (int i = 0; i < TABS.length; i++) {
+            mTabs.addView(tab(TABS[i], TAB_LABELS[i], TAB_ICONS[i]),
+                    new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        mTabs.addView(tab(-1, "More", R.drawable.ic_dash),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        return mTabs;
+    }
+
+    private LinearLayout tab(final int page, String label, int iconRes) {
+        LinearLayout item = Ui.column(this);
+        item.setGravity(Gravity.CENTER_HORIZONTAL);
+        item.setClickable(true);
+        item.setFocusable(true);
+        item.setMinimumHeight(Ui.dp(this, 48));
+        item.setPadding(Ui.dp(this, 2), Ui.dp(this, 6), Ui.dp(this, 2), Ui.dp(this, 6));
 
         ImageView icon = new ImageView(this);
         icon.setImageResource(iconRes);
-        int s = Ui.dp(this, 20);
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(s, s);
-        ip.rightMargin = Ui.dp(this, 14);
-        icon.setLayoutParams(ip);
-        row.addView(icon);
+        int s = Ui.dp(this, 22);
+        icon.setLayoutParams(new LinearLayout.LayoutParams(s, s));
+        icon.setColorFilter(mTheme.textSecondary);
+        Ui.addWide(item, icon);
 
-        TextView tv = Ui.body(this, label);
-        row.addView(tv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        TextView count = Ui.badge(this, "");
-        count.setVisibility(View.GONE);
-        count.setTag("count");
-        row.addView(count);
-
-        row.setOnClickListener(v -> {
-            navigate(page);
-            if (mShell.isDrawerMode()) mShell.closeDrawer();
-        });
-
+        TextView tv = Ui.text(this, label, R.style.T_Caption);
+        tv.setSingleLine(true);
+        tv.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.bottomMargin = Ui.dp(this, 2);
-        row.setLayoutParams(lp);
-        mSidebar.addView(row);
-        mNavItems.put(page, tv);
+        lp.topMargin = Ui.dp(this, 2);
+        tv.setLayoutParams(lp);
+        Ui.addWide(item, tv);
+
+        final View iconView = icon;
+        item.setOnClickListener(v -> {
+            if (page < 0) showMoreSheet();
+            else navigate(page);
+        });
+        mTabViews.put(page, item);
+        // the label sits inside the item; keep both for the highlight pass
+        item.setTag(tv);
+        return item;
+    }
+
+    /** the fifth tab: everything that is not a daily control */
+    private void showMoreSheet() {
+        String[] labels = new String[MORE_LABELS.length + 1];
+        System.arraycopy(MORE_LABELS, 0, labels, 0, MORE_LABELS.length);
+        labels[MORE_LABELS.length] = mPage == PAGE_RECORDER ? "Recorder (already open)" : "Recorder";
+        new AlertDialog.Builder(this)
+                .setTitle("More")
+                .setItems(labels, (d, which) -> {
+                    if (which < MORE_PAGES.length) navigate(MORE_PAGES[which]);
+                    else navigate(PAGE_RECORDER);
+                })
+                .setNegativeButton("Close", null)
+                .show();
     }
 
     // -------------------------------------------------------------- navigate
@@ -401,13 +384,12 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
         mTitle.setText(screen.title());
         mSubtitle.setText(screen.subtitle());
         screen.onResume();
-        highlightNav();
-        refreshTopbar();
+        highlightTabs();
+        refreshHeader();
     }
 
     private Screen createScreen(int page) {
         switch (page) {
-            case PAGE_RECORDER: return new RecorderScreen(this);
             case PAGE_MIXER: return new MixerScreen(this);
             case PAGE_DEVICES: return new DevicesScreen(this);
             case PAGE_SESSIONS: return new SessionsScreen(this);
@@ -418,21 +400,47 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
             case PAGE_STORAGE: return new StorageScreen(this);
             case PAGE_SETTINGS: return new SettingsScreen(this);
             case PAGE_ABOUT: return new AboutScreen(this);
-            default: return new DashboardScreen(this);
+            default: return new RecorderScreen(this);
         }
     }
 
-    private void highlightNav() {
-        for (Map.Entry<Integer, TextView> e : mNavItems.entrySet()) {
-            boolean sel = e.getKey() == mPage;
-            e.getValue().setTextColor(sel ? mTheme.accent : mTheme.textSecondary);
-            ViewGroup row = (ViewGroup) e.getValue().getParent();
-            row.setSelected(sel);
-            View icon = row.getChildAt(0);
-            if (icon instanceof ImageView) {
-                ((ImageView) icon).setColorFilter(sel ? mTheme.accent : mTheme.textSecondary);
+    private void highlightTabs() {
+        if (mTabViews.isEmpty()) return;
+        for (Map.Entry<Integer, View> e : mTabViews.entrySet()) {
+            int page = e.getKey();
+            View item = e.getValue();
+            boolean selected = page == mPage;
+            // "More" is lit when the page on screen lives inside it
+            if (page < 0) selected = isMorePage(mPage);
+            for (View child : children(item)) {
+                boolean on = child == item.getTag();
+                if (child instanceof ImageView) {
+                    ((ImageView) child).setColorFilter(selected ? mTheme.accent : mTheme.textSecondary);
+                    child.setAlpha(selected ? 1f : 0.75f);
+                } else if (child instanceof TextView) {
+                    ((TextView) child).setTextColor(selected ? mTheme.accent
+                            : mTheme.textSecondary);
+                }
+                if (selected) item.setBackgroundColor(mTheme.bgCard);
+                else item.setBackgroundColor(0);
             }
         }
+    }
+
+    private static java.util.List<View> children(View v) {
+        java.util.List<View> out = new java.util.ArrayList<>();
+        if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) out.add(g.getChildAt(i));
+        }
+        return out;
+    }
+
+    public static boolean isMorePage(int page) {
+        for (int p : MORE_PAGES) {
+            if (p == page) return true;
+        }
+        return false;
     }
 
     /** invalidate every page that shows shared data */
@@ -440,7 +448,7 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
         for (Screen s : mScreens.values()) {
             if (s != null) s.refresh();
         }
-        refreshTopbar();
+        refreshHeader();
     }
 
     public void refreshPage(int page) {
@@ -448,67 +456,32 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
         if (s != null) s.refresh();
     }
 
-    // --------------------------------------------------------------- topbar
-    public void refreshTopbar() {
-        mPills.removeAllViews();
+    // --------------------------------------------------------------- header
+    public void refreshHeader() {
         AudioDevice in = mEngine.input();
         AudioDevice out = mEngine.output();
-        if (in != null) {
-            boolean usb = in.isUsb;
-            TextView p = Ui.pill(this, (usb ? "USB  " : "IN  ") + in.shortSpec(),
-                    usb ? R.drawable.bg_pill : R.drawable.bg_badge,
-                    usb ? mTheme.accent : mTheme.textSecondary);
-            mPills.addView(p);
-        }
-        int channels = App.get().prefs().channels();
-        String container = App.get().prefs().container();
-        TextView fmt = Ui.badge(this, App.get().prefs().bitDepth() + "-bit  \u00b7  "
-                + Fmt.khz(App.get().prefs().sampleRate()) + "  \u00b7  " + container.toUpperCase());
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.leftMargin = Ui.dp(this, 6);
-        fmt.setLayoutParams(lp);
-        mPills.addView(fmt);
+
+        mInputChip.setText(in == null ? "no interface"
+                : (in.isUsb ? "USB  " : "IN  ") + in.shortSpec());
+        mInputChip.setBackgroundResource(in != null && in.isUsb
+                ? R.drawable.bg_pill : R.drawable.bg_badge);
+        mInputChip.setTextColor(in != null && in.isUsb ? mTheme.accent : mTheme.textSecondary);
+
+        mFormatChip.setText(App.get().prefs().bitDepth() + "-bit  \u00b7  "
+                + Fmt.khz(App.get().prefs().sampleRate()) + "  \u00b7  "
+                + App.get().prefs().channels() + " ch  \u00b7  "
+                + App.get().prefs().container().toUpperCase());
 
         File dir = App.get().prefs().recordDir();
-        if (dir != null) {
-            long free = dir.getFreeSpace();
-            TextView disk = Ui.badge(this, Fmt.size(free) + " free");
-            if (in != null) disk.setTextColor(mTheme.textTertiary);
-            if (free < 500L * 1024 * 1024) {
-                disk.setTextColor(mTheme.rec);
-                disk.setText("Low space: " + Fmt.size(free));
-            }
-            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp2.leftMargin = Ui.dp(this, 6);
-            disk.setLayoutParams(lp2);
-            mPills.addView(disk);
-        }
+        long free = dir == null ? 0L : dir.getFreeSpace();
+        mSpaceChip.setText(free < 500L * 1024 * 1024
+                ? "low space: " + Fmt.size(free) : Fmt.size(free) + " free");
+        mSpaceChip.setTextColor(free < 500L * 1024 * 1024 ? mTheme.rec : mTheme.textTertiary);
 
         if (out != null && out.isUsb) {
-            TextView o = Ui.badge(this, "OUT " + out.name);
-            LinearLayout.LayoutParams lp3 = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp3.leftMargin = Ui.dp(this, 6);
-            o.setLayoutParams(lp3);
-            mPills.addView(o);
+            mSpaceChip.setText(mSpaceChip.getText() + "  \u00b7  out " + out.name);
         }
-
         updateRecIndicator();
-        updateSidebarFooter(in);
-    }
-
-    private void updateSidebarFooter(AudioDevice in) {
-        View dev = mSidebar.findViewWithTag("footer_device");
-        View spec = mSidebar.findViewWithTag("footer_spec");
-        if (dev instanceof TextView) {
-            ((TextView) dev).setText(in == null ? "No input" : in.name);
-            ((TextView) dev).setTextColor(in != null && in.isUsb ? mTheme.accent : mTheme.textPrimary);
-        }
-        if (spec instanceof TextView) {
-            ((TextView) spec).setText(in == null ? "" : in.usbSpec() + "  \u00b7  " + in.shortSpec());
-        }
     }
 
     private void updateRecIndicator() {
@@ -528,7 +501,7 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
     @Override
     public void onDevicesChanged() {
         runOnUiThread(() -> {
-            refreshTopbar();
+            refreshHeader();
             Screen s = mScreens.get(PAGE_DEVICES);
             if (s != null && mPage == PAGE_DEVICES) s.refresh();
         });
@@ -632,12 +605,8 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
     // ------------------------------------------------------------- accessors
     @Override
     public void onBackPressed() {
-        if (mShell.isDrawerMode() && mShell.isOpen()) {
-            mShell.closeDrawer();
-            return;
-        }
-        if (mPage != PAGE_DASHBOARD) {
-            navigate(PAGE_DASHBOARD);
+        if (mPage != PAGE_RECORDER) {
+            navigate(PAGE_RECORDER);
             return;
         }
         if (mEngine.isCapturing()) {
@@ -670,6 +639,15 @@ public class MainActivity extends Activity implements AudioEngine.Listener {
 
     public void openRecorder() {
         navigate(PAGE_RECORDER);
+    }
+
+    /** the pages the bottom bar reaches directly, for tests and for the sheet */
+    public static int[] tabPages() {
+        return TABS.clone();
+    }
+
+    public static int[] morePages() {
+        return MORE_PAGES.clone();
     }
 
     /** run the take under a microphone foreground service so it survives backgrounding */

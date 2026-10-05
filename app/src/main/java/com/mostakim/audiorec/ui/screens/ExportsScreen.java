@@ -6,6 +6,7 @@ import android.widget.TextView;
 
 import com.mostakim.audiorec.R;
 import com.mostakim.audiorec.audio.Exporter;
+import com.mostakim.audiorec.share.Downloads;
 import com.mostakim.audiorec.audio.FormatProbe;
 import com.mostakim.audiorec.db.Models.Export;
 import com.mostakim.audiorec.db.Models.Track;
@@ -84,7 +85,7 @@ public class ExportsScreen extends Screen {
             head.addView(Ui.pill(act, ok ? e.status.toUpperCase() : "MISSING",
                     ok ? R.drawable.bg_pill : R.drawable.bg_pill_rec,
                     ok ? th.accent : th.rec));
-            card.addView(head);
+            Ui.addWide(card, head);
 
             card.addView(Ui.caption(act, "from  " + (e.trackTitle.isEmpty()
                     ? "take #" + e.trackId : e.trackTitle)));
@@ -94,13 +95,13 @@ public class ExportsScreen extends Screen {
             if (!e.note.isEmpty()) {
                 TextView n = Ui.caption(act, e.note);
                 n.setTextColor(th.textTertiary);
-                card.addView(n);
+                Ui.addWide(card, n);
             }
             if (!ok) {
                 TextView w = Ui.caption(act, "The file was moved or deleted outside the app. "
                         + "Re-export from the source take to rebuild it.");
                 w.setTextColor(th.rec);
-                card.addView(w);
+                Ui.addWide(card, w);
             }
 
             card.addView(Ui.spacer(act, 8));
@@ -112,19 +113,28 @@ public class ExportsScreen extends Screen {
                             Dialogs.shareFile(act, f, Formats.mimeFor(e.container))),
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             row.addView(Ui.spacer(act, 6));
+            row.addView(Ui.button(act, "Save", R.style.Btn_Small, v ->
+                            Dialogs.saveToDownloads(act, f, Formats.mimeFor(e.container))),
+                    new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            row.addView(Ui.spacer(act, 6));
             row.addView(Ui.button(act, "Verify", R.style.Btn_Small, v -> verify(e, f)),
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             row.addView(Ui.spacer(act, 6));
             row.addView(Ui.button(act, "More", R.style.Btn_Small, v -> more(e, f)),
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            card.addView(row);
+            Ui.addWide(card, row);
             col.addView(card);
         }
 
         col.addView(Ui.spacer(act, 8));
         LinearLayout note = card("Where exports go", null);
-        note.addView(Ui.caption(act, Exporter.exportsDir(act).getAbsolutePath()));
-        note.addView(Ui.caption(act, "Rendering is offline: the take is decoded locally, "
+        note.addView(Ui.caption(act, "In the app (private): " + Exporter.exportsDir(act)));
+        TextView visible = Ui.caption(act, "Every app can see: " + Downloads.visiblePath(""));
+        visible.setTextColor(th.accent);
+        Ui.addWide(note, visible);
+        note.addView(Ui.caption(act, "A finished export is copied there automatically; "
+                + "Save does it again for an older one. Rendering is offline: the take is "
+                + "decoded locally, "
                 + "resampled only when a different rate is asked for, and written with the same "
                 + "encoders the recorder uses. No file is uploaded anywhere."));
     }
@@ -152,7 +162,13 @@ public class ExportsScreen extends Screen {
                                         toast("Exported " + e.name + "  \u00b7  "
                                                 + Fmt.size(e.sizeBytes));
                                         refresh();
-                                        act.refreshTopbar();
+                                        act.refreshHeader();
+                                    }
+
+                                    @Override
+                                    public void onExportPublished(Export e, String visiblePath) {
+                                        Ui.longToast(act, "Copy saved to " + visiblePath
+                                                + "\nThe app's own copy stays in its folder.");
                                     }
 
                                     @Override
@@ -198,8 +214,8 @@ public class ExportsScreen extends Screen {
     }
 
     private void more(final Export e, final File f) {
-        final String[] items = {"Play", "Share", "Open containing folder", "Re-export\u2026",
-                "Delete row", "Delete row and file"};
+        final String[] items = {"Play", "Share", "Save to Downloads", "Re-export\u2026",
+                "Show the app folder", "Delete row", "Delete row and file"};
         new android.app.AlertDialog.Builder(act)
                 .setTitle(e.name)
                 .setItems(items, (d, which) -> {
@@ -211,17 +227,22 @@ public class ExportsScreen extends Screen {
                             Dialogs.shareFile(act, f, Formats.mimeFor(e.container));
                             break;
                         case 2:
-                            toast(Exporter.exportsDir(act).getAbsolutePath());
+                            Dialogs.saveToDownloads(act, f, Formats.mimeFor(e.container));
                             break;
                         case 3:
                             reExport(e);
                             break;
                         case 4:
+                            Ui.longToast(act, "In the app: " + Exporter.exportsDir(act)
+                                    + "\nThat folder is private to AUDIO-rec - Save to Downloads "
+                                    + "makes a copy every other app can see.");
+                            break;
+                        case 5:
                             act.store().delete(e, false);
                             refresh();
                             toast("Row removed, file kept");
                             break;
-                        case 5:
+                        case 6:
                             Ui.confirm(act, "Delete export?",
                                     "The row and " + e.name + " will be removed permanently.",
                                     "Delete", () -> {
@@ -248,6 +269,12 @@ public class ExportsScreen extends Screen {
                     public void onExportDone(Export done) {
                         toast("Exported " + done.name);
                         refresh();
+                    }
+
+                    @Override
+                    public void onExportPublished(Export done, String visiblePath) {
+                        Ui.longToast(act, "Copy saved to " + visiblePath
+                                + "\nShare it, or find it in any file manager.");
                     }
 
                     @Override

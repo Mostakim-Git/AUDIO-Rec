@@ -79,7 +79,7 @@ public class PresetsScreen extends Screen {
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             if (isLast) head.addView(Ui.pill(act, "IN USE", R.drawable.bg_pill, th.accent));
             else if (pr.builtin) head.addView(Ui.badge(act, "built-in"));
-            card.addView(head);
+            Ui.addWide(card, head);
 
             if (!pr.deviceName.isEmpty()) card.addView(Ui.caption(act, pr.deviceName));
             card.addView(Ui.caption(act, pr.summary()));
@@ -94,7 +94,7 @@ public class PresetsScreen extends Screen {
             if (!pr.notes.isEmpty()) {
                 android.widget.TextView n = Ui.caption(act, pr.notes);
                 n.setTextColor(th.textTertiary);
-                card.addView(n);
+                Ui.addWide(card, n);
             }
 
             card.addView(Ui.spacer(act, 8));
@@ -121,7 +121,7 @@ public class PresetsScreen extends Screen {
                                         toast("Preset deleted");
                                     })),
                     new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            card.addView(row);
+            Ui.addWide(card, row);
             col.addView(card);
         }
 
@@ -136,7 +136,7 @@ public class PresetsScreen extends Screen {
     private void matchLine(LinearLayout card, String text) {
         android.widget.TextView t = Ui.caption(act, "\u2713 " + text);
         t.setTextColor(th.ok);
-        card.addView(t);
+        Ui.addWide(card, t);
     }
 
     private UsbAudioProbe.UsbFacts attachedInterface() {
@@ -163,7 +163,7 @@ public class PresetsScreen extends Screen {
         act.store().bumpUse(pr.id);
         act.engine().setMonitorGainDb(pr.monitorGainDb);
         act.engine().setMonitoring(pr.monitor);
-        act.refreshTopbar();
+        act.refreshHeader();
         toast("Applied " + pr.name + "  \u00b7  " + pr.summary());
         refresh();
     }
@@ -213,7 +213,7 @@ public class PresetsScreen extends Screen {
         pr.createdAt = System.currentTimeMillis();
         act.store().insert(pr);
         refresh();
-        act.refreshTopbar();
+        act.refreshHeader();
         toast("Preset saved from the current setup");
     }
 }

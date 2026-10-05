@@ -64,7 +64,7 @@ public class DevicesScreen extends Screen {
             head.addView(Ui.pill(act, audio ? "AUDIO" : "OTHER",
                     audio ? R.drawable.bg_pill : R.drawable.bg_badge,
                     audio ? th.accent : th.textTertiary));
-            card.addView(head);
+            Ui.addWide(card, head);
 
             addRow(card, "USB id", String.format(java.util.Locale.US, "%04X:%04X",
                     f.vendorId, f.productId));
@@ -103,7 +103,7 @@ public class DevicesScreen extends Screen {
                         true, false, value -> {
                         });
             }), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            card.addView(actions);
+            Ui.addWide(card, actions);
         }
     }
 
@@ -169,7 +169,7 @@ public class DevicesScreen extends Screen {
                 if (input) act.engine().selectInput(d);
                 else act.engine().selectOutput(d);
                 refresh();
-                act.refreshTopbar();
+                act.refreshHeader();
                 toast((input ? "Input: " : "Output: ") + d.name);
             });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -198,7 +198,7 @@ public class DevicesScreen extends Screen {
                 + "If an interface reports no channels but has UAC streaming endpoints, try "
                 + "re-plugging it while AUDIO-rec is open: several bridges enumerate lazily.");
         t.setTextColor(th.textSecondary);
-        card.addView(t);
+        Ui.addWide(card, t);
     }
 
     private void addRow(LinearLayout parent, String key, String value) {

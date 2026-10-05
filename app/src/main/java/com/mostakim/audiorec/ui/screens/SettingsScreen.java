@@ -55,7 +55,7 @@ public class SettingsScreen extends Screen {
                 + "on the interface itself is set on the interface."));
         levels.addView(sliderRow("Input gain", p.gainDb(), -24f, 24f, db -> {
             App.get().prefs().setGainDb(db);
-            act.refreshTopbar();
+            act.refreshHeader();
         }));
         levels.addView(toggleRow("Monitoring", "Fold the input back to the first two outputs",
                 p.monitor(), on -> {
@@ -109,7 +109,7 @@ public class SettingsScreen extends Screen {
         behave.addView(toggleRow("Keep screen on", "Stops the display sleeping while armed",
                 p.keepScreenOn(), on -> {
                     App.get().prefs().setKeepScreenOn(on);
-                    act.refreshTopbar();
+                    act.refreshHeader();
                 }));
         behave.addView(toggleRow("Split mono inputs", "Treat each input of an interface as an "
                         + "independent mono track name",
@@ -133,7 +133,7 @@ public class SettingsScreen extends Screen {
         row.addView(Ui.spacer(act, 8));
         row.addView(Ui.button(act, "Diagnostics", R.style.Btn, v -> diagnostics()),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        danger.addView(row);
+        Ui.addWide(danger, row);
         danger.addView(Ui.spacer(act, 8));
         danger.addView(Ui.button(act, "Restore the built-in presets", R.style.Btn_Danger,
                 v -> Ui.confirm(act, "Restore built-in presets?",
@@ -142,7 +142,7 @@ public class SettingsScreen extends Screen {
                         "Restore", () -> {
                             int n = act.store().restoreBuiltinPresets();
                             toast(n + " built-in presets restored");
-                            act.refreshTopbar();
+                            act.refreshHeader();
                             refresh();
                         })));
     }
@@ -184,7 +184,7 @@ public class SettingsScreen extends Screen {
                                    final OnDb cb) {
         LinearLayout wrap = Ui.column(act);
         final TextView readout = Ui.body(act, label + "   " + Fmt.db(value) + " dB");
-        wrap.addView(readout);
+        Ui.addWide(wrap, readout);
         SeekBar bar = new SeekBar(act);
         bar.setMax(1000);
         bar.setProgress((int) (1000f * (value - min) / (max - min)));
@@ -204,7 +204,7 @@ public class SettingsScreen extends Screen {
             public void onStopTrackingTouch(SeekBar s) {
             }
         });
-        wrap.addView(bar);
+        Ui.addWide(wrap, bar);
         wrap.setPadding(0, Ui.dp(act, 6), 0, Ui.dp(act, 6));
         return wrap;
     }
@@ -307,7 +307,7 @@ public class SettingsScreen extends Screen {
                 act.engine().selectOutput(list.get(idx - 1));
             }
             refresh();
-            act.refreshTopbar();
+            act.refreshHeader();
         });
     }
 
@@ -334,7 +334,7 @@ public class SettingsScreen extends Screen {
         p.setChannelTrims(new float[8]);
         act.engine().resetChannelTrims();
         act.engine().refreshDevices();
-        act.refreshTopbar();
+        act.refreshHeader();
         toast("Settings reset");
         refresh();
     }
