@@ -138,11 +138,18 @@ public class FaderStrip extends LinearLayout {
         if (mListener != null) mListener.onValue(next, true);
     }
 
-    /** the persisted input gain, shared by every screen that shows one */
+    /**
+     * The persisted input gain, shared by every screen that shows one.
+     *
+     * The range is applied before the stored value: the strip is built with a
+     * default -60..+12 range, and setting the value first would clamp a gain
+     * above +12 dB to the default ceiling, so the fader would open showing a
+     * number the engine is not using.
+     */
     public static FaderStrip gain(Context c) {
         FaderStrip strip = new FaderStrip(c);
-        strip.configure("GAIN", App.get().prefs().gainDb(), 0f);
         strip.setRange(-24f, 24f);
+        strip.configure("GAIN", App.get().prefs().gainDb(), 0f);
         strip.setOnValueChanged((db, done) -> App.get().prefs().setGainDb(db));
         return strip;
     }
@@ -150,8 +157,8 @@ public class FaderStrip extends LinearLayout {
     /** the monitoring level of the fold-back to the interface's outputs */
     public static FaderStrip monitor(Context c) {
         FaderStrip strip = new FaderStrip(c);
-        strip.configure("MONITOR", App.get().prefs().monitorGainDb(), -6f);
         strip.setRange(-60f, 12f);
+        strip.configure("MONITOR", App.get().prefs().monitorGainDb(), -6f);
         strip.setOnValueChanged((db, done) -> {
             App.get().prefs().setMonitorGainDb(db);
             if (App.get().audio() != null) App.get().audio().setMonitorGainDb(db);

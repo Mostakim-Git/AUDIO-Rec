@@ -13,6 +13,7 @@ name: Attach AUDIO-rec.apk to its release
 on:
   push:
     branches:
+      - arena/84ef3f3c-audio-rec
       - arena/01a10817-audio-rec
       - main
     paths:

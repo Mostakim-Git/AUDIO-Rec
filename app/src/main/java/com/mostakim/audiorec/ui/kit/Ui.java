@@ -396,7 +396,7 @@ public final class Ui {
         t.setTypeface(Typeface.MONOSPACE);
     }
 
-    /** tinted square used as a section marker in the sidebar */
+    /** tinted square used as a section marker */
     public static View dot(Context c, int color) {
         View v = new View(c);
         int s = dp(c, 8);

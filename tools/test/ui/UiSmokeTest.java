@@ -26,7 +26,7 @@ import java.util.Set;
  *
  * This compiles the app's real ui/ sources against stand-in Android classes
  * (tools/test/ui/stubs) and stand-in engines (tools/test/ui/fakes), then runs
- * the real MainActivity.onCreate(), the real sidebar, and every real screen.
+ * the real MainActivity.onCreate(), the real tab bar, and every real screen.
  * The view tree is then measured and laid out at phone and tablet sizes, and
  * the result is inspected: a page must contain real, non-empty, non-zero-sized
  * content, or the test fails.

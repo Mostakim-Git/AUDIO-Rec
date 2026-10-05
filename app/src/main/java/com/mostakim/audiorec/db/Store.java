@@ -397,7 +397,7 @@ public class Store {
         }
     }
 
-    /** per-day track counts for the dashboard activity strip (last `days` days) */
+    /** per-day track counts for the last {@code days} days */
     public int[] tracksPerDay(int days) {
         int[] out = new int[days];
         long dayMs = 86400000L;
