@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AUDIO-rec</string>
+    <string name="app_tagline">USB Audio Recording &amp; Production Workstation</string>
+    <string name="author">Mostakim Billah</string>
+
+    <!-- navigation -->
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_recorder">Recorder</string>
+    <string name="nav_mixer">Mixer</string>
+    <string name="nav_devices">Devices</string>
+    <string name="nav_sessions">Sessions</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_playlist">Playlist</string>
+    <string name="nav_exports">Export Files</string>
+    <string name="nav_presets">Device Presets</string>
+    <string name="nav_storage">Storage</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_about">About</string>
+
+    <!-- actions -->
+    <string name="action_record">Record</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_pause">Pause</string>
+    <string name="action_monitor">Monitor</string>
+    <string name="action_play">Play</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_share">Share</string>
+    <string name="action_new">New</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_export">Export</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_connect">Authorize</string>
+    <string name="action_tap_clear">Tap a meter to clear its peak hold</string>
+
+    <!-- recorder -->
+    <string name="rec_ready">Ready</string>
+    <string name="rec_armed">Armed</string>
+    <string name="rec_recording">Recording</string>
+    <string name="rec_paused">Paused</string>
+    <string name="rec_monitoring">Monitoring</string>
+    <string name="rec_bit_perfect">Bit-perfect path</string>
+    <string name="rec_input_gain">Input gain</string>
+    <string name="rec_monitor_level">Monitor level</string>
+
+    <!-- empty states -->
+    <string name="empty_sessions">No sessions yet.\nCreate one to organise takes, artists and notes.</string>
+    <string name="empty_tracks">No recordings yet.\nArm the recorder and hit Record.</string>
+    <string name="empty_presets">No device presets yet.\nDial in your interface, then save it as a preset.</string>
+    <string name="empty_exports">No exported files yet.\nExport a track as WAV, FLAC, AIFF or OGG.</string>
+    <string name="empty_playlist">Point the playlist at a folder to play it back in order.</string>
+
+    <!-- warnings -->
+    <string name="warn_no_usb">No USB audio interface detected.</string>
+    <string name="warn_permission">Microphone permission is required to capture audio.</string>
+    <string name="warn_feedback">Monitoring is live: use headphones to avoid feedback.</string>
+    <string name="warn_low_space">Low disk space!</string>
+    <string name="disclaimer">AUDIO-rec uses the Android USB-host + audio stack. Devices that are USB Audio Class compliant (UAC1/UAC2) stream through the direct path; vendor-specific interfaces are still probed and their UAC controls exposed where the interface advertises them. No root required.</string>
+</resources>

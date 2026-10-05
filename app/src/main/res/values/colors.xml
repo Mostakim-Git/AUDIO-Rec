@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ============ AUDIO-rec palette : "console at 3 a.m." ============ -->
+    <color name="bg_root">#FF0A0D12</color>
+    <!-- adaptive-icon ground: warm paper, the one backdrop the official logo's
+         black line art and amber ink actually read against (the UI stays dark) -->
+    <color name="launcher_background">#FFF7F5F1</color>
+    <color name="bg_panel">#FF11161E</color>
+    <color name="bg_card">#FF161D27</color>
+    <color name="bg_card_hi">#FF1D2632</color>
+    <color name="bg_sunken">#FF070A0E</color>
+    <color name="bg_sidebar">#FF0E131A</color>
+    <color name="stroke">#FF26313F</color>
+    <color name="stroke_soft">#FF1B2430</color>
+
+    <color name="text_primary">#FFE9EFF7</color>
+    <color name="text_secondary">#FF9AACBF</color>
+    <color name="text_tertiary">#FF66788C</color>
+    <color name="text_disabled">#FF47535F</color>
+
+    <color name="accent">#FF2FD4E6</color>
+    <color name="accent_dim">#332FD4E6</color>
+    <color name="accent_press">#FF1FA9BA</color>
+    <color name="brand">#FFFF8A2B</color>
+    <color name="brand_dim">#33FF8A2B</color>
+    <color name="rec">#FFFF3B45</color>
+    <color name="rec_dim">#33FF3B45</color>
+    <color name="ok">#FF3DDC97</color>
+    <color name="warn">#FFFFC53D</color>
+    <color name="busy">#FF7C8CFF</color>
+
+    <!-- meters -->
+    <color name="meter_bg">#FF151C25</color>
+    <color name="meter_low">#FF3DDC97</color>
+    <color name="meter_mid">#FFFFC53D</color>
+    <color name="meter_high">#FFFF4A4A</color>
+    <color name="meter_peak">#FFFFFFFF</color>
+    <color name="meter_rms">#FFBFEFFF</color>
+    <color name="scope_trace">#FF2FD4E6</color>
+    <color name="scope_grid">#FF1E2833</color>
+
+    <color name="scrim">#CC000000</color>
+    <color name="transparent">#00000000</color>
+</resources>

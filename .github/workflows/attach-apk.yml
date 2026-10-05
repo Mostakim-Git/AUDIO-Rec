@@ -1,0 +1,101 @@
+name: Attach AUDIO-rec.apk to its release
+
+# The environment this project is built in cannot reach uploads.github.com (the
+# only host that accepts release assets), so a runner attaches the APK instead.
+# The workflow is idempotent: re-running it never uploads a second copy.
+#
+# The version lives in release/VERSION; the tag is v<that>.  Everything the
+# workflow checks comes from the repository itself:
+#   * the APK's SHA-256 matches release/AUDIO-rec.apk.sha256
+#   * tools/apk_check.py re-inspects the package (signature, components, dex)
+#   * the asset already on the release is compared byte for byte by size
+
+on:
+  push:
+    branches:
+      - arena/01a10817-audio-rec
+      - main
+    paths:
+      - release/AUDIO-rec.apk
+      - release/VERSION
+      - release/RELEASE-NOTES-*.md
+      - .github/workflows/attach-apk.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # tags are needed to create the release
+
+      - name: Read the version and verify the APK
+        id: apk
+        run: |
+          set -euo pipefail
+          version=$(tr -d '[:space:]' < release/VERSION)
+          tag="v$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          f=release/AUDIO-rec.apk
+          test -f "$f"
+          size=$(stat -c%s "$f")
+          hash=$(sha256sum "$f" | cut -d' ' -f1)
+          recorded=$(tr -d '[:space:]' < release/AUDIO-rec.apk.sha256)
+          echo "size=$size"
+          echo "sha256=$hash"
+          echo "recorded=$recorded"
+          echo "size=$size" >> "$GITHUB_OUTPUT"
+          echo "sha256=$hash" >> "$GITHUB_OUTPUT"
+          test "$hash" = "$recorded"
+          test -f "release/RELEASE-NOTES-$version.md"
+
+      - name: Re-inspect the package
+        run: python3 tools/zip_check.py release/AUDIO-rec.apk
+
+      - name: Create the release if it does not exist yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.apk.outputs.tag }}"
+          version="${{ steps.apk.outputs.version }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag already exists"
+            exit 0
+          fi
+          gh release create "$tag" \
+            --title "AUDIO-rec $version" \
+            --notes-file "release/RELEASE-NOTES-$version.md" \
+            --target "$GITHUB_SHA"
+
+      - name: Attach the APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.apk.outputs.tag }}"
+          if gh release view "$tag" --json assets --jq '.assets[].name' \
+               | grep -qx AUDIO-rec.apk; then
+            echo "AUDIO-rec.apk is already attached; nothing to do."
+            exit 0
+          fi
+          gh release upload "$tag" release/AUDIO-rec.apk
+
+      - name: Read the release back
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.apk.outputs.tag }}"
+          gh release view "$tag" --json tagName,assets \
+            --jq '.tagName, (.assets[] | "  \(.name)  \(.size) bytes  \(.state)")'
+          got=$(gh release view "$tag" --json assets \
+                  --jq '.assets[] | select(.name == "AUDIO-rec.apk") | .size')
+          test "$got" = "${{ steps.apk.outputs.size }}"
+          echo "the asset on the release is the APK that was verified here"
